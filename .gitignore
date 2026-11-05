@@ -1,8 +1,6 @@
 __pycache__/
 
-# AI assistant and agent tool files never belong in the repository
-AGENTS.md
-CLAUDE.md
+# AI assistant tool state stays out of the repository (AGENTS.md and CLAUDE.md are kept)
 GEMINI.md
 .claude/
 .codex/
