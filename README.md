@@ -29,12 +29,12 @@ the same way.
 | Workflow | Runs | Inputs (default) |
 |---|---|---|
 | `schema-validate.yml` | `scripts/validate.sh` with `BASE_REF` set to the pull request base, plus actionlint | `actionlint` (true), `timeout_minutes` (15) |
-| `dataset-validate.yml` | as above, plus the bot path rule: pull requests opened by `bot_login` may only change `bot_allowed_paths` | `bot_login` (`roastbook-sourcing[bot]`), `bot_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
+| `dataset-validate.yml` | as above, plus the agent path rule: pull requests opened by `agent_login` may only change `agent_allowed_paths` | `bot_login` (`roastbook-sourcing[bot]`), `bot_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
 | `site-build.yml` | `scripts/build.sh`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
 | `pages-deploy.yml` | `actions/deploy-pages` into environment `github-pages`, concurrency group `pages` | none; output `page_url` |
 | `link-check.yml` | lychee via `scripts/link-check.sh` (warn-only on pull requests, `--full` and failing otherwise) and HTTP smoke checks on scheduled and manual runs | `link_check` (true), `full` (false), `smoke_urls` (""), `lychee_version`, `timeout_minutes` (30) |
 | `release.yml` | the release flow below | see below |
-| `agent-run.yml` | `scripts/agent.sh` as the Sourcing App, with `.cache/crawl` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
+| `agent-run.yml` | `scripts/agent.sh` as the Sourcing App, with `.cache/pages` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
 
 Every job that runs a script ends with the `summary` action, which turns
 `.ci/report.json` into a "CI summary" in the job summary.
@@ -201,7 +201,7 @@ listed repositories):
       (variable or secret) and `RELEASER_APP_PRIVATE_KEY` (secret) for both.
       It tags releases, sends `schema-released`, and opens the schema bump pull request.
 - [ ] **Sourcing App** (Contents and Pull requests: read and write), installed on
-      open-coffee-data; its bot login must be `roastbook-sourcing[bot]`.
+      open-coffee-data; its GitHub App login must be `roastbook-sourcing[bot]`.
       `SOURCING_APP_ID` (variable) and `SOURCING_APP_PRIVATE_KEY` (secret).
 - [ ] open-coffee-data: `LLM_API_KEY` (secret); `LLM_BASE_URL`, `LLM_MODEL`,
       `SOURCING_BUDGET_USD` (variables).

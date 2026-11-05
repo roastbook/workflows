@@ -2,17 +2,17 @@ name: Dataset validate
 
 # Runs scripts/validate.sh of a dataset repository (pinned schema, id
 # stability against BASE_REF, source allow-list, image licences), enforces the
-# paths the data bot may touch, and runs actionlint.
+# paths the data agent may touch, and runs actionlint.
 
 on:
   workflow_call:
     inputs:
-      bot_login:
-        description: Login of the data bot whose pull requests are path-restricted.
+      agent_login:
+        description: GitHub App login of the data agent whose pull requests are path-restricted.
         type: string
         default: roastbook-sourcing[bot]
-      bot_allowed_paths:
-        description: Space-separated bash globs the bot may change (any `*` also matches `/`).
+      agent_allowed_paths:
+        description: Space-separated bash globs the agent may change (any `*` also matches `/`).
         type: string
         default: datasets/coffee-places/**
       actionlint:
@@ -27,9 +27,9 @@ on:
 permissions: {}
 
 jobs:
-  bot-paths:
-    name: Bot path rule
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot_login
+  agent-paths:
+    name: Agent path rule
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.agent_login
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
@@ -44,7 +44,7 @@ jobs:
       - name: Reject changes outside the allowed paths
         env:
           BASE: origin/${{ github.base_ref }}
-          ALLOWED: ${{ inputs.bot_allowed_paths }}
+          ALLOWED: ${{ inputs.agent_allowed_paths }}
         run: |
           set -euo pipefail
           read -ra globs <<< "$ALLOWED"
@@ -56,7 +56,7 @@ jobs:
               [[ "$file" == $glob ]] && ok=1 && break
             done
             if (( ! ok )); then
-              echo "::error file=$file::The data bot may only change: $ALLOWED"
+              echo "::error file=$file::The data agent may only change: $ALLOWED"
               bad=1
             fi
           done < <(git diff --name-only --no-renames "$BASE...HEAD")

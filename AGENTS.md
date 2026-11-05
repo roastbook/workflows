@@ -10,7 +10,7 @@ repositories, and repository settings (`scripts/repo-metadata.sh`).
 - Pin every third-party action to a full commit SHA with a `# vX.Y.Z` comment.
   Look SHAs up with `git ls-remote https://github.com/<owner>/<repo> 'refs/tags/<tag>*'`.
 - Give every job explicit, minimal `permissions:`; workflows default to `permissions: {}`.
-  Writes that must trigger other workflows (tags, releases, bot pull requests) use a
+  Writes that must trigger other workflows (tags, releases, agent pull requests) use a
   GitHub App token, never a PAT.
 - Reusable-workflow inputs and composite-action inputs are a public interface:
   add inputs with defaults, do not rename or remove them without bumping every caller.
