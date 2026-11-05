@@ -73,8 +73,8 @@ on:
         description: Releaser GitHub App ID (falls back to vars.RELEASER_APP_ID).
         required: false
       RELEASER_APP_PRIVATE_KEY:
-        description: Releaser GitHub App private key.
-        required: true
+        description: Releaser GitHub App private key. Without it the job token tags and releases (tag-triggered workflows and the dispatch then do not run).
+        required: false
     outputs:
       tag:
         description: Released tag; empty when nothing was released.
@@ -105,12 +105,15 @@ jobs:
     name: Tag and publish release
     runs-on: ubuntu-26.04
     timeout-minutes: 20
-    # Writes go through the releaser App token so tag and release events trigger workflows.
+    # Writes go through the releaser App token so tag and release events trigger workflows;
+    # without the App they fall back to the job token (contents: write).
     # packages: read lets the setup action install dependencies from GitHub Packages.
     permissions:
-      contents: read
+      contents: write
       actions: read
       packages: read
+    env:
+      HAS_RELEASER_APP: ${{ secrets.RELEASER_APP_PRIVATE_KEY != '' }}
     outputs:
       tag: ${{ steps.version.outputs.skip != 'true' && steps.version.outputs.tag || '' }}
       version: ${{ steps.version.outputs.skip != 'true' && steps.version.outputs.version || '' }}
@@ -254,7 +257,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create release App token
-        if: steps.version.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true' && env.HAS_RELEASER_APP == 'true'
         id: token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -264,10 +267,15 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
 
+      - name: Note the job-token fallback
+        if: steps.version.outputs.skip != 'true' && env.HAS_RELEASER_APP != 'true'
+        run: |
+          echo '::warning::No releaser App configured: tagging with the job token, so workflows triggered by the tag and the dependent-repository dispatch do not run.'
+
       - name: Tag the tested revision
         if: steps.version.outputs.skip != 'true' && steps.version.outputs.existing != 'true'
         env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_TOKEN: ${{ steps.token.outputs.token || github.token }}
           TAG: ${{ steps.version.outputs.tag }}
         run: |
           gh api "repos/$GH_REPO/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
@@ -275,7 +283,7 @@ jobs:
       - name: Publish release
         if: steps.version.outputs.skip != 'true'
         env:
-          GH_TOKEN: ${{ steps.token.outputs.token }}
+          GH_TOKEN: ${{ steps.token.outputs.token || github.token }}
           TAG: ${{ steps.version.outputs.tag }}
           ASSETS_GLOB: ${{ inputs.assets_command != '' && inputs.assets_glob || '' }}
         run: |
@@ -346,8 +354,15 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions: {}
+    env:
+      HAS_RELEASER_APP: ${{ secrets.RELEASER_APP_PRIVATE_KEY != '' }}
     steps:
+      - name: Skip without the releaser App
+        if: env.HAS_RELEASER_APP != 'true'
+        run: echo '::warning::No releaser App configured; skipped the repository_dispatch to ${{ inputs.dispatch_repository }}.'
+
       - name: Create releaser App token
+        if: env.HAS_RELEASER_APP == 'true'
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -358,6 +373,7 @@ jobs:
           permission-contents: write
 
       - name: Send repository_dispatch
+        if: env.HAS_RELEASER_APP == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           TARGET: ${{ github.repository_owner }}/${{ inputs.dispatch_repository }}

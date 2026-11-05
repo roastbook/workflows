@@ -17,7 +17,7 @@ jobs:
   release:
     name: Release
     permissions:
-      contents: read
+      contents: write
       actions: read
 {%- if npm %}
       packages: write
