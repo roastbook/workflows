@@ -30,11 +30,11 @@ the same way.
 |---|---|---|
 | `schema-validate.yml` | `scripts/validate.sh` with `BASE_REF` set to the pull request base, plus actionlint | `actionlint` (true), `timeout_minutes` (15) |
 | `dataset-validate.yml` | as above, plus the agent path rule: pull requests opened by `agent_login` may only change `agent_allowed_paths` | `agent_login` (`roastbook-sourcing[bot]`), `agent_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
-| `site-build.yml` | `scripts/build.sh` on a checkout with full history and tags, so the build can read the release version with `git describe`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
+| `site-build.yml` | `scripts/build.sh` on a checkout with full history and tags, so the build can read the release version with `git describe`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact. A release tag that is no longer the head of the default branch builds the default branch instead, so a late tag deploy cannot roll the site back | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
 | `pages-deploy.yml` | `actions/deploy-pages` into environment `github-pages`, concurrency group `pages` | none; output `page_url` |
-| `link-check.yml` | lychee via `scripts/link-check.sh` (warn-only on pull requests, `--full` and failing otherwise) and HTTP smoke checks on scheduled and manual runs | `link_check` (true), `full` (false), `smoke_urls` (""), `lychee_version`, `timeout_minutes` (30) |
+| `link-check.yml` | lychee via `scripts/link-check.sh` (warn-only on pull requests, `--full` and failing otherwise) and HTTP smoke checks on scheduled and manual runs | `link_check` (true), `full` (false), `smoke_urls` (""), `lychee_version` and its `lychee_sha256`, `timeout_minutes` (30) |
 | `release.yml` | the release flow below | see below |
-| `agent-run.yml` | `scripts/agent.sh` as the Sourcing App, with `.cache/pages` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
+| `agent-run.yml` | `scripts/agent.sh` with a Sourcing App token scoped to the calling repository (only in `GH_TOKEN`; the checkout keeps no credentials), with `.cache/pages` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
 
 Every job that runs a script ends with the `summary` action, which turns
 `.ci/report.json` into a "CI summary" in the job summary.
@@ -62,15 +62,22 @@ Optional hooks, all off by default:
 | `bump_type` | `auto` | `auto`, `patch`, `minor` or `major` |
 | `ci_workflow` | `ci.yml` | workflow file that must have passed |
 | `version_scheme` | `semver` | `semver` (`vX.Y.Z`) or `date` (`YYYY.MM.DD.N`) |
-| `cliff_config`, `git_cliff_version` | `cliff.toml`, `v2.14.2` | git-cliff configuration and release |
+| `cliff_config`, `git_cliff_version`, `git_cliff_sha256` | `cliff.toml`, `v2.14.2`, its checksum | git-cliff configuration, and the release binary with the SHA-256 of `git-cliff-<version>-x86_64-unknown-linux-gnu.tar.gz` (set both together) |
 | `node_setup` | false | run the `setup` action (Bun, `bun install`) before the assets command |
 | `assets_command` | "" | shell command with `TAG` and `VERSION` set, e.g. `scripts/release-assets.sh "$TAG"` |
 | `assets_glob` | `release/*` | files to upload to the release (directories are skipped) |
 | `npm_publish`, `npm_package_dirs`, `npm_registry`, `node_version` | false, `release/npm`, `https://npm.pkg.github.com`, `26` | `npm publish` of each whitespace-separated directory built by `assets_command`, in order, with `GITHUB_TOKEN`; versions that already exist are skipped, so reruns are safe |
 | `dispatch_repository`, `dispatch_event` | "", `released` | send `repository_dispatch` with `client_payload: {version, tag}` to a repository of the same owner |
 
-Secrets: `RELEASER_APP_PRIVATE_KEY` (required), `RELEASER_APP_ID` (or the
-`RELEASER_APP_ID` variable). Callers pass them with `secrets: inherit`.
+Secrets, both optional: `RELEASER_APP_PRIVATE_KEY` and `RELEASER_APP_ID` (or the
+`RELEASER_APP_ID` variable). The `common/release` template passes exactly these two
+secrets, not `secrets: inherit`. Without the private key the release falls back to the
+job token, which still tags and publishes the release but loses:
+
+- workflows triggered by the tag or release, because GitHub does not start workflows for
+  events created with `GITHUB_TOKEN` (for example the Pages deploy on release tags);
+- the `repository_dispatch` to `dispatch_repository`, which is skipped with a warning
+  (the job token cannot write to another repository).
 
 npm packages go to GitHub Packages (`npm_registry`). Only the publish job gets
 `packages: write`, and the caller job must grant it (the `common/release`
@@ -115,8 +122,23 @@ package settings → **Manage Actions access**. Locally, use
   validated, versions, build size, URL, warnings) into `$GITHUB_STEP_SUMMARY`.
   A missing file is reported, not failed. Input: `path`.
 
-Reusable workflows load these actions from `@main`, so their inputs must stay
-backward compatible.
+### Pinned composite actions
+
+Reusable workflows load these actions at a full commit SHA, so a caller's pin of
+`Roastbook/workflows` also fixes the actions it runs. A commit cannot reference its own
+SHA, so the pin is the last commit that changed `.github/actions`, set by
+`scripts/pin-actions.sh`. To change an action:
+
+1. Merge the change to `.github/actions/` (the workflows still use the previous pin).
+2. On an up-to-date `main`, run `bash scripts/pin-actions.sh` and merge the result as
+   `chore: pin composite actions to <sha>`.
+3. Only then bump `templates/_workflows-ref.yml` and the callers to a commit that
+   contains step 2.
+
+`validate.yml` runs `scripts/pin-actions.sh --check`: it fails when the references
+differ or the pin is not an ancestor of `HEAD`, and warns while `.github/actions` has
+changes that are not pinned yet. Keep action inputs backward compatible, because
+callers on older pins still run older actions.
 
 ## Templates
 
@@ -128,7 +150,7 @@ backward compatible.
 | `open-coffee/deploy` | `deploy.yml` (`Deploy`, main and release tags) | `kind`, `release_tags` |
 | `open-coffee/data-agent` | `data-agent.yml` (`Data agent`) | `cron` |
 | `open-coffee/bump-schema` | `bump-schema.yml` (on `schema-released`, rewrites the `$schema` URLs in `datasets/**/*.json` to the new version and opens "chore(schema): bump to vX" listing the changed files) | none |
-| `common/release` | `release.yml` (`Release`) | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
+| `common/release` | `release.yml` (`Release`); free-form string params are rendered single-quoted, so `#` and `: ` survive | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
 
 `fixtures/` holds one caller per supported parameter set. The callers in
 open-coffee-schema and open-coffee-data are exactly the rendered fixtures
@@ -201,14 +223,49 @@ listed repositories):
       (variable or secret) and `RELEASER_APP_PRIVATE_KEY` (secret) for both.
       It tags releases, sends `schema-released`, and opens the schema bump pull request.
 - [ ] **Sourcing App** (Contents and Pull requests: read and write), installed on
-      open-coffee-data; its GitHub App login must be `roastbook-sourcing[bot]`.
+      open-coffee-data only; its GitHub App login must be `roastbook-sourcing[bot]`.
       `SOURCING_APP_ID` (variable) and `SOURCING_APP_PRIVATE_KEY` (secret).
+      Add the rulesets in [Data agent rulesets](#data-agent-rulesets).
 - [ ] open-coffee-data: `LLM_API_KEY` (secret); `LLM_BASE_URL`, `LLM_MODEL`,
       `SOURCING_BUDGET_USD` (variables).
 - [ ] After the first open-coffee-schema release: make `@roastbook/open-coffee-schema`
       and `@roastbook/open-coffee-ui` public (package settings → Change visibility),
       or add `open-coffee-data` under **Manage Actions access** (role Read).
 - [ ] Org Actions policy allows `Roastbook/workflows` and the pinned third-party actions.
+
+### Data agent rulesets
+
+The data agent reads untrusted web pages while holding a token with Contents and Pull
+requests write. `agent-run.yml` scopes that token to the calling repository and keeps it
+out of the Git configuration, but only rulesets stop the App from writing elsewhere. The
+agent creates branches named `data-agent/<city>-<date>-<id>` and opens pull requests into
+`main`. Recommended rulesets for open-coffee-data (Settings → Rules → Rulesets → New
+branch ruleset; not applied by `scripts/repo-metadata.sh`):
+
+1. **Sourcing App branches**
+   - Enforcement status: Active
+   - Bypass list (Always allow): Repository admin role, Maintain role, Write role, the
+     Orcastrate App, the Releaser App and the Renovate App. Do not add the Sourcing App.
+   - Target branches: Include all branches; Exclude by pattern `data-agent/**`
+   - Rules: Restrict creations, Restrict updates, Restrict deletions
+
+   The Sourcing App can then create and update only `data-agent/**` branches.
+   GitHub Apps are not matched by the role entries; confirm after setup that an
+   API branch creation outside `data-agent/**` with a Sourcing App token is rejected.
+2. **Protect main**
+   - Enforcement status: Active
+   - Bypass list: empty
+   - Target branches: Include default branch
+   - Rules: Restrict deletions; Block force pushes; Require a pull request before
+     merging (1 required approval, dismiss stale approvals when new commits are pushed,
+     require approval of the most recent reviewable push, require conversation
+     resolution, allowed merge method Squash); Require status checks to pass, with
+     "Require branches to be up to date before merging" and the checks
+     `Validate / Validate dataset`, `Validate / Agent path rule` and
+     `Validate / Lint workflows`.
+
+   `Agent path rule` only runs on the agent's pull requests and counts as passed when
+   skipped; on agent pull requests it rejects changes outside `agent_allowed_paths`.
 
 ## Repository settings
 

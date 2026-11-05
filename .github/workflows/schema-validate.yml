@@ -34,7 +34,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Bun
-        uses: Roastbook/workflows/.github/actions/setup@main
+        uses: Roastbook/workflows/.github/actions/setup@7c716b16de05cc8c9cb80cdd907bf6a87587b1b5 # pinned by scripts/pin-actions.sh
 
       - name: Run scripts/validate.sh
         env:
@@ -43,7 +43,7 @@ jobs:
 
       - name: CI summary
         if: always()
-        uses: Roastbook/workflows/.github/actions/summary@main
+        uses: Roastbook/workflows/.github/actions/summary@7c716b16de05cc8c9cb80cdd907bf6a87587b1b5 # pinned by scripts/pin-actions.sh
 
   actionlint:
     name: Lint workflows
@@ -58,8 +58,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" actionlint
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
       - name: Run actionlint
         # actionlint 1.7.12 does not know the ubuntu-26.04 label yet.
-        run: >-
-          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
-          -ignore 'label "ubuntu-26\.04" is unknown'
+        run: actionlint -ignore 'label "ubuntu-26\.04" is unknown'

@@ -41,8 +41,22 @@ jobs:
           permission-workflows: write
           permission-issues: write
 
+      - name: Install Orcastrate
+        env:
+          ORCASTRATE_VERSION: v0.2.0
+          ORCASTRATE_SHA256: d9bec03678829cb3d692bd05ddd144fc1302380ecde66239e8185b02f1bec6d2
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/orcastrate.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/michidk/orcastrate/releases/download/$ORCASTRATE_VERSION/orcastrate-x86_64-unknown-linux-musl.tar.gz"
+          echo "$ORCASTRATE_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" --strip-components=1 orcastrate-x86_64-unknown-linux-musl/orcastrate
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      # The release binary, not the Orcastrate action: the action runs the mutable :main image.
       - name: Run Orcastrate
-        uses: michidk/orcastrate@33bf30bfac60bb0abbc5f50921def1954f3f51cc # main
-        with:
-          orcastrate-token: ${{ steps.app-token.outputs.token }}
-          github-token: ${{ steps.app-token.outputs.token }}
+        env:
+          ORCASTRATE_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: orcastrate sync --mode pr

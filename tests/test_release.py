@@ -2,20 +2,19 @@
 
 Ported from michidk/workflows tests/test_common_release.py, plus the date version scheme.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import date, timedelta
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
-import textwrap
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-WORKFLOW = (ROOT / '.github/workflows/release.yml').read_text()
-START = WORKFLOW.index('          set -euo pipefail', WORKFLOW.index('      - name: Calculate version'))
-END = WORKFLOW.index('\n      - name: Set up Bun', START)
-SCRIPT = textwrap.dedent(WORKFLOW[START:END])
+from workflow import ROOT, step_script, stub
+
+SCRIPT = step_script('.github/workflows/release.yml', 'Calculate version and release notes')
+# A fixed "today" (through a date stub) so the date tests cannot flake at midnight UTC.
+TODAY = date(2026, 3, 4)
 CLIFF = os.environ.get('GIT_CLIFF', shutil.which('git-cliff'))
 # The shared preset, so the tests also cover its tag pattern and parsers.
 CONFIG = (ROOT / 'templates/presets/cliff.toml').read_text()
@@ -29,9 +28,11 @@ class ReleaseTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.path = Path(self.temp.name)
-        binary = self.path / 'git-cliff/bin/git-cliff'
-        binary.parent.mkdir(parents=True)
-        binary.symlink_to(Path(CLIFF).resolve())
+        self.bin = self.path / 'bin'
+        self.bin.mkdir()
+        (self.bin / 'git-cliff').symlink_to(Path(CLIFF).resolve())
+        stub(self.bin, 'date', f'[[ "$*" == "-u +%Y.%m.%d" ]] && exec echo {TODAY:%Y.%m.%d}\n'
+             'exec /usr/bin/date "$@"\n')
         self.git('init', '-b', 'main')
         self.commit('feat: initial application')
         (self.path / 'cliff.toml').write_text(CONFIG)
@@ -49,7 +50,7 @@ class ReleaseTest(unittest.TestCase):
         output.write_text('')
         script = SCRIPT.replace('/tmp/release-notes.md', str(self.path / 'notes'))
         result = subprocess.run(['bash', '-euo', 'pipefail', '-c', script],
-            cwd=self.path, env={**os.environ, 'RUNNER_TEMP': str(self.path),
+            cwd=self.path, env={**os.environ, 'PATH': f'{self.bin}:{os.environ["PATH"]}',
                 'GITHUB_OUTPUT': str(output), 'GITHUB_SHA': self.git('rev-parse', 'HEAD'),
                 'BUMP_TYPE': bump, 'VERSION_SCHEME': self.scheme}, text=True, capture_output=True)
         return result, dict(line.split('=', 1) for line in output.read_text().splitlines())
@@ -134,7 +135,7 @@ class DateReleaseTest(ReleaseTest):
 
     @staticmethod
     def day(offset=0):
-        return (datetime.now(timezone.utc) + timedelta(days=offset)).strftime('%Y.%m.%d')
+        return (TODAY + timedelta(days=offset)).strftime('%Y.%m.%d')
 
     def test_first_release(self):
         result, output = self.calculate()

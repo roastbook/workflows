@@ -35,22 +35,24 @@ jobs:
       node_setup: true
 {%- endif %}
 {%- if assets_command is defined %}
-      assets_command: {{ assets_command }}
+      assets_command: '{{ assets_command | replace(from="'", to="''") }}'
 {%- endif %}
 {%- if assets_glob is defined %}
-      assets_glob: {{ assets_glob }}
+      assets_glob: '{{ assets_glob | replace(from="'", to="''") }}'
 {%- endif %}
 {%- if npm %}
       npm_publish: true
 {%- if npm_package_dirs is defined %}
-      npm_package_dirs: {{ npm_package_dirs }}
+      npm_package_dirs: '{{ npm_package_dirs | replace(from="'", to="''") }}'
 {%- endif %}
 {%- if npm_registry is defined %}
-      npm_registry: {{ npm_registry }}
+      npm_registry: '{{ npm_registry | replace(from="'", to="''") }}'
 {%- endif %}
 {%- endif %}
 {%- if dispatch_repository is defined %}
       dispatch_repository: {{ dispatch_repository }}
       dispatch_event: {{ dispatch_event | default(value="released") }}
 {%- endif %}
-    secrets: inherit
+    secrets:
+      RELEASER_APP_ID: ${{ "{{ secrets.RELEASER_APP_ID }}" }}
+      RELEASER_APP_PRIVATE_KEY: ${{ "{{ secrets.RELEASER_APP_PRIVATE_KEY }}" }}

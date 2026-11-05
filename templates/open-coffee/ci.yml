@@ -10,7 +10,8 @@ permissions: {}
 
 concurrency:
   group: ci-${{ "{{ github.ref }}" }}
-  cancel-in-progress: true
+  # Every push to main keeps its run: Release requires a successful push run for its commit.
+  cancel-in-progress: ${{ "{{ github.event_name == 'pull_request' }}" }}
 
 jobs:
   validate:

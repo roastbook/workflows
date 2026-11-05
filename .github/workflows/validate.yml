@@ -20,27 +20,64 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Checkout
+      - name: Checkout with history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout pinned Orcastrate
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: michidk/orcastrate
-          ref: 33bf30bfac60bb0abbc5f50921def1954f3f51cc # renovate: datasource=git-refs depName=https://github.com/michidk/orcastrate currentValue=main
-          path: .orcastrate-source
-          persist-credentials: false
-
-      - name: Build Orcastrate
-        run: docker build -t orcastrate-validate .orcastrate-source
+      - name: Install Orcastrate
+        env:
+          ORCASTRATE_VERSION: v0.2.0
+          ORCASTRATE_SHA256: d9bec03678829cb3d692bd05ddd144fc1302380ecde66239e8185b02f1bec6d2
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/orcastrate.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/michidk/orcastrate/releases/download/$ORCASTRATE_VERSION/orcastrate-x86_64-unknown-linux-musl.tar.gz"
+          echo "$ORCASTRATE_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" --strip-components=1 orcastrate-x86_64-unknown-linux-musl/orcastrate
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Install actionlint
-        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/actionlint.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/rhysd/actionlint/releases/download/$ACTIONLINT_VERSION/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz"
+          echo "$ACTIONLINT_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" actionlint
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Install git-cliff for the release tests
+        env:
+          GIT_CLIFF_VERSION: v2.14.2
+          GIT_CLIFF_SHA256: 24f397c733add5390fdceee3a2088588ab0d5f944ce00d34cb7029b888cf2db4
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/git-cliff.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/orhun/git-cliff/releases/download/$GIT_CLIFF_VERSION/git-cliff-${GIT_CLIFF_VERSION#v}-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$GIT_CLIFF_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" --strip-components=1 "git-cliff-${GIT_CLIFF_VERSION#v}/git-cliff"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Verify the pinned lychee checksum
+        # link-check.yml installs lychee in caller repositories; check its pin here.
+        env:
+          LYCHEE_VERSION: lychee-v0.24.2
+          LYCHEE_SHA256: 1f4e0ef7f6554a6ed33dd7ac144fb2e1bbed98598e7af973042fc5cd43951c9a
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/lychee.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$LYCHEE_SHA256  $archive" | sha256sum -c -
 
       - name: Validate templates
-        run: docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace orcastrate-validate validate
+        run: orcastrate validate
 
       - name: Render every fixture into actionlint
         # actionlint 1.7.12 does not know the ubuntu-26.04 label yet.
@@ -48,26 +85,22 @@ jobs:
           set -euo pipefail
           for fixture in fixtures/*.yml; do
             echo "::group::$fixture"
-            docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace orcastrate-validate render "$fixture" \
-              | "$(go env GOPATH)/bin/actionlint" -ignore 'label "ubuntu-26\.04" is unknown' -stdin-filename "$fixture" -
+            orcastrate render "$fixture" | actionlint -ignore 'label "ubuntu-26\.04" is unknown' -stdin-filename "$fixture" -
             echo "::endgroup::"
           done
 
       - name: Lint this repository's workflows
         # GitHub supports concurrency.queue; actionlint 1.7.12 has not added it yet.
         run: >-
-          "$(go env GOPATH)/bin/actionlint"
+          actionlint
           -ignore 'label "ubuntu-26\.04" is unknown'
           -ignore '^unexpected key "queue" for "concurrency" section\.'
 
-      - name: Install git-cliff for release tests
-        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
-        with:
-          version: v2.14.2
-          args: --version
+      - name: Check the composite action pin
+        run: bash scripts/pin-actions.sh --check
 
-      - name: Test release version calculation
-        run: GIT_CLIFF="$RUNNER_TEMP/git-cliff/bin/git-cliff" python3 -m unittest discover -s tests
+      - name: Test workflow scripts
+        run: python3 -m unittest discover -s tests
 
       - name: Check scripts
         run: shellcheck scripts/*.sh

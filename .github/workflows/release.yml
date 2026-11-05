@@ -32,6 +32,10 @@ on:
         description: git-cliff release to install.
         type: string
         default: v2.14.2
+      git_cliff_sha256:
+        description: SHA-256 of git-cliff-<version>-x86_64-unknown-linux-gnu.tar.gz; set it together with git_cliff_version.
+        type: string
+        default: 24f397c733add5390fdceee3a2088588ab0d5f944ce00d34cb7029b888cf2db4
       node_setup:
         description: Run the setup composite action (Bun, bun install) before the assets command.
         type: boolean
@@ -143,12 +147,18 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install git-cliff and inspect changes
-        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
-        with:
-          version: ${{ inputs.git_cliff_version }}
-          config: ${{ inputs.cliff_config }}
-          args: --unreleased --output /tmp/unreleased.md
+      - name: Install git-cliff
+        env:
+          GIT_CLIFF_VERSION: ${{ inputs.git_cliff_version }}
+          GIT_CLIFF_SHA256: ${{ inputs.git_cliff_sha256 }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/git-cliff.tar.gz"
+          curl -fsSL -o "$archive" "https://github.com/orhun/git-cliff/releases/download/$GIT_CLIFF_VERSION/git-cliff-${GIT_CLIFF_VERSION#v}-x86_64-unknown-linux-gnu.tar.gz"
+          echo "$GIT_CLIFF_SHA256  $archive" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" --strip-components=1 "git-cliff-${GIT_CLIFF_VERSION#v}/git-cliff"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Calculate version and release notes
         id: version
@@ -161,7 +171,7 @@ jobs:
             date) stable='^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[1-9][0-9]*$' ;;
             *) echo '::error::Expected version_scheme semver or date.'; exit 1 ;;
           esac
-          cliff() { "$RUNNER_TEMP/git-cliff/bin/git-cliff" --tag-pattern "$stable" "$@"; }
+          cliff() { git-cliff --tag-pattern "$stable" "$@"; }
           latest="$(git tag --sort=-version:refname | { grep -E "$stable" || true; } | sed -n '1p')"
           if [[ -n "$latest" ]] && ! git merge-base --is-ancestor "$latest" HEAD; then
             echo '::error::The latest release tag must be an ancestor of this revision.'
@@ -218,7 +228,7 @@ jobs:
 
       - name: Set up Bun
         if: steps.version.outputs.skip != 'true' && inputs.node_setup
-        uses: Roastbook/workflows/.github/actions/setup@main
+        uses: Roastbook/workflows/.github/actions/setup@7c716b16de05cc8c9cb80cdd907bf6a87587b1b5 # pinned by scripts/pin-actions.sh
 
       - name: Build release assets
         if: steps.version.outputs.skip != 'true' && inputs.assets_command != ''
@@ -337,7 +347,10 @@ jobs:
           REGISTRY: ${{ inputs.npm_registry }}
         run: |
           set -euo pipefail
+          # Captured first so a failing find stops the job instead of publishing nothing.
+          dirs="$(find packages -mindepth 1 -maxdepth 1 -type d | sort -V)"
           while IFS= read -r dir; do
+            [[ -n "$dir" ]] || continue
             spec="$(jq -r '.name + "@" + .version' "$dir/package.json")"
             if npm view "$spec" version --registry "$REGISTRY" > /dev/null 2>&1; then
               echo "$spec is already on $REGISTRY; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
@@ -345,7 +358,7 @@ jobs:
             fi
             (cd "$dir" && npm publish --registry "$REGISTRY")
             echo "Published $spec to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
-          done < <(find packages -mindepth 1 -maxdepth 1 -type d | sort -V)
+          done <<< "$dirs"
 
   dispatch:
     name: Notify dependent repository
@@ -359,7 +372,9 @@ jobs:
     steps:
       - name: Skip without the releaser App
         if: env.HAS_RELEASER_APP != 'true'
-        run: echo '::warning::No releaser App configured; skipped the repository_dispatch to ${{ inputs.dispatch_repository }}.'
+        env:
+          TARGET: ${{ inputs.dispatch_repository }}
+        run: echo "::warning::No releaser App configured; skipped the repository_dispatch to $TARGET."
 
       - name: Create releaser App token
         if: env.HAS_RELEASER_APP == 'true'
