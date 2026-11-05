@@ -1,0 +1,70 @@
+name: Roastbook · 📌 Bump schema
+
+on:
+  repository_dispatch:
+    types: [schema-released]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Released schema version without "v", e.g. 1.0.1
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: bump-schema
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Open schema bump pull request
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    # Writes go through the releaser App token so the pull request triggers CI.
+    permissions: {}
+    steps:
+      - name: Check version
+        id: version
+        env:
+          VERSION: ${{ "{{ github.event.client_payload.version || inputs.version }}" }}
+        run: |
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Expected a semantic version like 1.0.1, got '$VERSION'."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create releaser App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ "{{ secrets.RELEASER_APP_ID || vars.RELEASER_APP_ID }}" }}
+          private-key: ${{ "{{ secrets.RELEASER_APP_PRIVATE_KEY }}" }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Pin schema version
+        env:
+          VERSION: ${{ "{{ steps.version.outputs.version }}" }}
+        run: printf '%s\n' "$VERSION" > {{ version_file | default(value="schema-version.txt") }}
+
+      - name: Open pull request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ "{{ steps.app-token.outputs.token }}" }}
+          sign-commits: true
+          branch: chore/bump-schema
+          delete-branch: true
+          add-paths: {{ version_file | default(value="schema-version.txt") }}
+          commit-message: "chore(schema): bump to v${{ "{{ steps.version.outputs.version }}" }}"
+          title: "chore(schema): bump to v${{ "{{ steps.version.outputs.version }}" }}"
+          body: |
+            Open Coffee Schema [v${{ "{{ steps.version.outputs.version }}" }}](https://github.com/Roastbook/open-coffee-schema/releases/tag/v${{ "{{ steps.version.outputs.version }}" }}) was released.
+
+            This pins `{{ version_file | default(value="schema-version.txt") }}` to the new version. Cupping validates every dataset file against it; review the release notes for breaking changes before merging.

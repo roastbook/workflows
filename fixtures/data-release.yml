@@ -1,0 +1,6 @@
+# @orcastrate
+# template: common/release
+# params:
+#   ci_workflow: cupping.yml
+#   version_scheme: date
+# @end-orcastrate

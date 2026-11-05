@@ -1,0 +1,102 @@
+name: Link and smoke checks
+
+# Pull requests: scripts/link-check.sh in warning mode. Schedule and manual
+# runs: scripts/link-check.sh --full (fails on broken links) plus HTTP smoke
+# checks of the deployed site.
+
+on:
+  workflow_call:
+    inputs:
+      link_check:
+        description: Run scripts/link-check.sh (installs lychee first).
+        type: boolean
+        default: true
+      full:
+        description: Force a full, failing link check even on pull requests.
+        type: boolean
+        default: false
+      smoke_urls:
+        description: Whitespace-separated URLs that must answer 2xx on scheduled and manual runs.
+        type: string
+        default: ""
+      lychee_version:
+        description: lychee release to install.
+        type: string
+        default: lychee-v0.24.2
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 30
+
+permissions: {}
+
+jobs:
+  links:
+    name: Check links
+    if: inputs.link_check
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Restore lychee cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.run_id }}
+          restore-keys: lychee-
+
+      - name: Install lychee
+        env:
+          LYCHEE_VERSION: ${{ inputs.lychee_version }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/lycheeverse/lychee/releases/download/$LYCHEE_VERSION/lychee-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz --strip-components=1 -C "$HOME/.local/bin" lychee-x86_64-unknown-linux-gnu/lychee
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run scripts/link-check.sh
+        env:
+          FULL: ${{ inputs.full || github.event_name != 'pull_request' }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$FULL" == true ]]; then
+            scripts/link-check.sh --full
+          else
+            scripts/link-check.sh
+          fi
+
+      - name: Roast report
+        if: always()
+        uses: Roastbook/workflows/.github/actions/roast-report@main
+
+  smoke:
+    name: Smoke-check deployed site
+    if: inputs.smoke_urls != '' && github.event_name != 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Request each URL
+        env:
+          URLS: ${{ inputs.smoke_urls }}
+        run: |
+          set -uo pipefail
+          failed=0
+          printf '## Smoke checks\n\n| | URL | HTTP |\n|---|---|---|\n' >> "$GITHUB_STEP_SUMMARY"
+          for url in $URLS; do
+            if status="$(curl -sS -o /dev/null -L --retry 3 --max-time 30 -w '%{http_code}' "$url")" && [[ "$status" == 2* ]]; then
+              echo "| ✅ | $url | $status |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "::error::$url answered ${status:-no response}"
+              echo "| ❌ | $url | ${status:-–} |" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done
+          exit "$failed"

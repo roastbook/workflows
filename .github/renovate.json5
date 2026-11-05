@@ -1,0 +1,62 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: ['github>Roastbook/workflows//templates/presets/renovate'],
+  packageRules: [
+    {
+      // Reusable workflows use this repository's composite actions at @main,
+      // and the template ref is bumped by hand: pinning or bumping them here
+      // would chase every merge to main.
+      description: 'Do not manage self-references',
+      matchPackageNames: ['Roastbook/workflows'],
+      enabled: false,
+    },
+    {
+      description: 'Keep the sync action on Orcastrate main',
+      matchManagers: ['github-actions'],
+      matchPackageNames: ['michidk/orcastrate'],
+      enabled: false,
+    },
+  ],
+  'github-actions': {
+    managerFilePatterns: [
+      '/(^|/)\\.github/(workflows|actions)/.+\\.ya?ml$/',
+      '/^templates/.+\\.yml$/',
+    ],
+  },
+  customManagers: [
+    {
+      customType: 'regex',
+      description: 'actionlint run through go run / go install',
+      managerFilePatterns: ['/^\\.github/workflows/.+\\.yml$/'],
+      matchStrings: ['github\\.com/rhysd/actionlint/cmd/actionlint@(?<currentValue>v[0-9.]+)'],
+      depNameTemplate: 'rhysd/actionlint',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      description: 'lychee release installed by link-check.yml',
+      managerFilePatterns: ['/^\\.github/workflows/link-check\\.yml$/'],
+      matchStrings: ['default: (?<currentValue>lychee-v[0-9.]+)'],
+      depNameTemplate: 'lycheeverse/lychee',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      description: 'git-cliff release used by release.yml and the release tests',
+      managerFilePatterns: ['/^\\.github/workflows/(release|validate)\\.yml$/'],
+      matchStrings: [
+        'git_cliff_version:[\\s\\S]*?default: (?<currentValue>v[0-9.]+)',
+        'git-cliff-action@\\S+ # \\S+\\n\\s+with:\\n\\s+version: (?<currentValue>v[0-9.]+)',
+      ],
+      depNameTemplate: 'orhun/git-cliff',
+      datasourceTemplate: 'github-releases',
+    },
+    {
+      customType: 'regex',
+      description: 'Orcastrate source pinned for template validation',
+      managerFilePatterns: ['/^\\.github/workflows/.+\\.yml$/'],
+      matchStrings: ['ref: (?<currentDigest>[a-f0-9]{40}) # renovate: datasource=(?<datasource>git-refs) depName=(?<depName>\\S+) currentValue=(?<currentValue>\\S+)'],
+      versioningTemplate: 'git',
+    },
+  ],
+}

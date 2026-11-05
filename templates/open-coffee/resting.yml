@@ -1,0 +1,30 @@
+{%- set link_check = kind == "data" -%}
+name: Roastbook · ⏳ Resting (link and smoke checks)
+
+on:
+{%- if link_check %}
+  pull_request:
+{%- endif %}
+  schedule:
+    - cron: "{{ cron | default(value="23 5 * * 1") }}"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: resting-${{ "{{ github.ref }}" }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Link and smoke checks
+    permissions:
+      contents: read
+    uses: Roastbook/workflows/.github/workflows/link-check.yml@{{ <workflows_ref/> }} # main
+    with:
+      link_check: {{ link_check }}
+      smoke_urls: >-
+        {{ site_url }}
+{%- for url in smoke_paths | default(value=[]) %}
+        {{ site_url | trim_end(pat="/") }}/{{ url | trim_start(pat="/") }}
+{%- endfor %}

@@ -1,0 +1,107 @@
+name: Dataset validate
+
+# Runs scripts/validate.sh of a dataset repository (pinned schema, id
+# stability against BASE_REF, source allow-list, image licences), enforces the
+# paths the data bot may touch, and runs actionlint.
+
+on:
+  workflow_call:
+    inputs:
+      bot_login:
+        description: Login of the data bot whose pull requests are path-restricted.
+        type: string
+        default: roastbook-sourcing[bot]
+      bot_allowed_paths:
+        description: Space-separated bash globs the bot may change (any `*` also matches `/`).
+        type: string
+        default: datasets/coffee-places/** assets/**
+      actionlint:
+        description: Lint .github/workflows with actionlint.
+        type: boolean
+        default: true
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 15
+
+permissions: {}
+
+jobs:
+  bot-paths:
+    name: Bot path rule
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == inputs.bot_login
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout with history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Reject changes outside the allowed paths
+        env:
+          BASE: origin/${{ github.base_ref }}
+          ALLOWED: ${{ inputs.bot_allowed_paths }}
+        run: |
+          set -euo pipefail
+          read -ra globs <<< "$ALLOWED"
+          bad=0
+          while IFS= read -r file; do
+            ok=0
+            for glob in "${globs[@]}"; do
+              # shellcheck disable=SC2053 # glob match is intended
+              [[ "$file" == $glob ]] && ok=1 && break
+            done
+            if (( ! ok )); then
+              echo "::error file=$file::The data bot may only change: $ALLOWED"
+              bad=1
+            fi
+          done < <(git diff --name-only --no-renames "$BASE...HEAD")
+          exit "$bad"
+
+  validate:
+    name: Validate dataset
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout with history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node and pnpm
+        uses: Roastbook/workflows/.github/actions/setup@main
+
+      - name: Run scripts/validate.sh
+        env:
+          BASE_REF: origin/${{ github.base_ref || github.event.repository.default_branch }}
+        run: scripts/validate.sh
+
+      - name: Roast report
+        if: always()
+        uses: Roastbook/workflows/.github/actions/roast-report@main
+
+  actionlint:
+    name: Lint workflows
+    if: inputs.actionlint
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        # actionlint 1.7.12 does not know the ubuntu-26.04 label yet.
+        run: >-
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          -ignore 'label "ubuntu-26\.04" is unknown'

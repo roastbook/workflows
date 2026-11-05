@@ -1,0 +1,48 @@
+name: Sync workflows
+
+# Renders the templates for every Roastbook repository with the
+# `managed-workflows` topic and opens a pull request per drifted workflow.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: orcastrate-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync managed workflows
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Create Orcastrate App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.ORCASTRATE_APP_ID }}
+          private-key: ${{ secrets.ORCASTRATE_PRIVATE_KEY }}
+          owner: Roastbook
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+          permission-issues: write
+
+      - name: Run Orcastrate
+        uses: michidk/orcastrate@33bf30bfac60bb0abbc5f50921def1954f3f51cc # main
+        with:
+          orcastrate-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.app-token.outputs.token }}

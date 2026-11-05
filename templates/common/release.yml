@@ -1,0 +1,52 @@
+{%- set npm = npm_publish | default(value=false) -%}
+name: {{ name | default(value="Roastbook · 🫘 Release") }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: Version bump from Conventional Commits or an explicit override
+        required: true
+        type: choice
+        default: auto
+        options: [auto, patch, minor, major]
+
+permissions: {}
+
+jobs:
+  release:
+    name: Release
+    permissions:
+      contents: read
+      actions: read
+{%- if npm %}
+      id-token: write
+{%- endif %}
+    uses: Roastbook/workflows/.github/workflows/release.yml@{{ <workflows_ref/> }} # main
+    with:
+      bump_type: ${{ "{{ inputs.bump_type }}" }}
+      ci_workflow: {{ ci_workflow | default(value="ci.yml") }}
+{%- if version_scheme is defined %}
+      version_scheme: {{ version_scheme }}
+{%- endif %}
+{%- if node_setup | default(value=false) %}
+      node_setup: true
+{%- endif %}
+{%- if assets_command is defined %}
+      assets_command: {{ assets_command }}
+{%- endif %}
+{%- if assets_glob is defined %}
+      assets_glob: {{ assets_glob }}
+{%- endif %}
+{%- if npm %}
+      # Turn on with the NPM_PUBLISH_ENABLED variable once the npm trusted publisher exists.
+      npm_publish: ${{ "{{ vars.NPM_PUBLISH_ENABLED == 'true' }}" }}
+{%- if npm_package_dir is defined %}
+      npm_package_dir: {{ npm_package_dir }}
+{%- endif %}
+{%- endif %}
+{%- if dispatch_repository is defined %}
+      dispatch_repository: {{ dispatch_repository }}
+      dispatch_event: {{ dispatch_event | default(value="released") }}
+{%- endif %}
+    secrets: inherit

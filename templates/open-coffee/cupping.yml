@@ -1,0 +1,24 @@
+name: Roastbook · ☕ Cupping (validate)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cupping-${{ "{{ github.ref }}" }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate
+    permissions:
+      contents: read
+{%- if kind == "schema" %}
+    uses: Roastbook/workflows/.github/workflows/schema-validate.yml@{{ <workflows_ref/> }} # main
+{%- elif kind == "data" %}
+    uses: Roastbook/workflows/.github/workflows/dataset-validate.yml@{{ <workflows_ref/> }} # main
+{%- endif %}

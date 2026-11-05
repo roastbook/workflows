@@ -1,0 +1,60 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared Renovate preset for Roastbook repositories",
+  "extends": [
+    "config:best-practices",
+    ":semanticCommits",
+    ":enableVulnerabilityAlerts"
+  ],
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Group and automerge GitHub Actions updates after checks pass",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "ignoreTests": false
+    },
+    {
+      "description": "Bump pinned Roastbook/workflows refs weekly, separately from third-party actions",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["Roastbook/workflows"],
+      "groupName": "Roastbook workflows",
+      "schedule": ["before 6am on monday"]
+    },
+    {
+      "description": "Wait three days before updating npm packages",
+      "matchDatasources": ["npm"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Group non-major JavaScript dependency updates",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "JavaScript dependencies"
+    },
+    {
+      "description": "Automerge non-major development dependency updates after checks pass",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "ignoreTests": false
+    },
+    {
+      "description": "Automerge digest pinning after checks pass",
+      "matchUpdateTypes": ["pin", "pinDigest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": false,
+      "ignoreTests": false
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 4am on monday"]
+  }
+}

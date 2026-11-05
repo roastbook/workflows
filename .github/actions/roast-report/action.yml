@@ -1,0 +1,40 @@
+name: Roast report
+description: Render .roast/report.json into the job summary as "☕ Roast report". A missing file is reported, not failed.
+
+inputs:
+  path:
+    description: Path to the report written by the repository scripts.
+    required: false
+    default: .roast/report.json
+
+runs:
+  using: composite
+  steps:
+    - name: Write roast report
+      shell: bash
+      env:
+        REPORT: ${{ inputs.path }}
+      run: |
+        set -euo pipefail
+        {
+          echo '## ☕ Roast report'
+          echo
+          if [[ ! -s "$REPORT" ]] || ! jq -e 'type == "object"' "$REPORT" > /dev/null 2>&1; then
+            echo "_No report found at \`$REPORT\`._"
+            exit 0
+          fi
+          jq -r '
+            def v: if . == null then "–" else tostring end;
+            "| | |",
+            "|---|---|",
+            "| Records validated | \(.records_validated | v) |",
+            "| Files validated | \(.files_validated | v) |",
+            (.versions // {} | to_entries[] | "| \(.key | ascii_upcase[:1] + .[1:]) version | `\(.value)` |"),
+            (if .build then "| Build size | \((.build.bytes // 0) / 1024 | floor) KiB in \(.build.files | v) files |" else empty end),
+            (if .url then "| URL | \(.url) |" else empty end),
+            "",
+            (if (.warnings // []) | length > 0
+              then "### ⚠️ Warnings (\(.warnings | length))", "", (.warnings[] | "- \(.)")
+              else "No warnings." end)
+          ' "$REPORT"
+        } >> "$GITHUB_STEP_SUMMARY"

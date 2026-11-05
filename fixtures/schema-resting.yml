@@ -1,0 +1,9 @@
+# @orcastrate
+# template: open-coffee/resting
+# params:
+#   kind: schema
+#   site_url: https://schema.roastbook.coffee/
+#   smoke_paths:
+#     - coffee-places/coffee-places.schema.latest.json
+#     - coffee-places/latest/
+# @end-orcastrate

@@ -1,0 +1,99 @@
+name: Agent run
+
+# Runs scripts/agent.sh as the Sourcing GitHub App. The agent writes only
+# through pull requests; crawled pages persist in .cache/crawl between runs
+# (the agent enforces its own 30-day page TTL).
+
+on:
+  workflow_call:
+    inputs:
+      app_id:
+        description: ID of the Sourcing GitHub App (pass vars.SOURCING_APP_ID).
+        type: string
+        required: true
+      llm_base_url:
+        description: OpenAI-compatible base URL (pass vars.LLM_BASE_URL).
+        type: string
+        required: true
+      llm_model:
+        description: Model name (pass vars.LLM_MODEL).
+        type: string
+        required: true
+      budget_usd:
+        description: Monthly LLM and API budget with a hard stop (pass vars.SOURCING_BUDGET_USD).
+        type: string
+        required: true
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 180
+    secrets:
+      app_private_key:
+        description: Private key of the Sourcing GitHub App.
+        required: true
+      llm_api_key:
+        description: API key for the LLM endpoint.
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: sourcing-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  agent:
+    name: Run data agent
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    steps:
+      - name: Create Sourcing App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ inputs.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Checkout as the Sourcing App
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Configure bot commit identity
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          BOT: ${{ steps.app-token.outputs.app-slug }}[bot]
+        run: |
+          set -euo pipefail
+          id="$(gh api "users/$BOT" --jq .id)"
+          git config user.name "$BOT"
+          git config user.email "$id+$BOT@users.noreply.github.com"
+
+      - name: Restore crawl cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .cache/crawl
+          key: crawl-${{ github.run_id }}
+          restore-keys: crawl-
+
+      - name: Set up Node and pnpm
+        uses: Roastbook/workflows/.github/actions/setup@main
+
+      - name: Run scripts/agent.sh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          LLM_BASE_URL: ${{ inputs.llm_base_url }}
+          LLM_MODEL: ${{ inputs.llm_model }}
+          LLM_API_KEY: ${{ secrets.llm_api_key }}
+          SOURCING_BUDGET_USD: ${{ inputs.budget_usd }}
+        run: scripts/agent.sh
+
+      - name: Roast report
+        if: always()
+        uses: Roastbook/workflows/.github/actions/roast-report@main

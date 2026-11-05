@@ -1,0 +1,61 @@
+name: Site build
+
+# Runs scripts/build.sh (static site into dist/). Pull requests get a preview
+# artifact; other events get the Pages artifact consumed by pages-deploy.yml.
+
+on:
+  workflow_call:
+    inputs:
+      dist:
+        description: Directory written by scripts/build.sh.
+        type: string
+        default: dist
+      preview_retention_days:
+        description: Days to keep the pull request preview artifact.
+        type: number
+        default: 7
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 20
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout with history and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node and pnpm
+        uses: Roastbook/workflows/.github/actions/setup@main
+
+      - name: Run scripts/build.sh
+        run: scripts/build.sh
+
+      - name: Roast report
+        if: always()
+        uses: Roastbook/workflows/.github/actions/roast-report@main
+
+      - name: Upload preview artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site-preview-pr-${{ github.event.pull_request.number }}
+          path: ${{ inputs.dist }}
+          retention-days: ${{ inputs.preview_retention_days }}
+          if-no-files-found: error
+
+      - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ inputs.dist }}

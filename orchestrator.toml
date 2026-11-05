@@ -1,0 +1,9 @@
+[orchestrator]
+templates_dir = "templates"
+branch_prefix = "orcastrate/sync"
+pr_label = "orcastrate"
+
+# Repositories in the Roastbook org with the `managed-workflows` topic.
+[discovery]
+org = "Roastbook"
+topic = "managed-workflows"

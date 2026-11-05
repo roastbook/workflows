@@ -1,0 +1,73 @@
+name: Validate workflows
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Render templates and lint workflows
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Checkout pinned Orcastrate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: michidk/orcastrate
+          ref: 33bf30bfac60bb0abbc5f50921def1954f3f51cc # renovate: datasource=git-refs depName=https://github.com/michidk/orcastrate currentValue=main
+          path: .orcastrate-source
+          persist-credentials: false
+
+      - name: Build Orcastrate
+        run: docker build -t orcastrate-validate .orcastrate-source
+
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+
+      - name: Validate templates
+        run: docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace orcastrate-validate validate
+
+      - name: Render every fixture into actionlint
+        # actionlint 1.7.12 does not know the ubuntu-26.04 label yet.
+        run: |
+          set -euo pipefail
+          for fixture in fixtures/*.yml; do
+            echo "::group::$fixture"
+            docker run --rm -v "$GITHUB_WORKSPACE:/workspace" -w /workspace orcastrate-validate render "$fixture" \
+              | "$(go env GOPATH)/bin/actionlint" -ignore 'label "ubuntu-26\.04" is unknown' -stdin-filename "$fixture" -
+            echo "::endgroup::"
+          done
+
+      - name: Lint this repository's workflows
+        # GitHub supports concurrency.queue; actionlint 1.7.12 has not added it yet.
+        run: >-
+          "$(go env GOPATH)/bin/actionlint"
+          -ignore 'label "ubuntu-26\.04" is unknown'
+          -ignore '^unexpected key "queue" for "concurrency" section\.'
+
+      - name: Install git-cliff for release tests
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          version: v2.14.2
+          args: --version
+
+      - name: Test release version calculation
+        run: GIT_CLIFF="$RUNNER_TEMP/git-cliff/bin/git-cliff" python3 -m unittest discover -s tests
+
+      - name: Check scripts
+        run: shellcheck scripts/*.sh

@@ -1,0 +1,18 @@
+name: Roastbook · 🔥 Roast (build)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: roast-${{ "{{ github.ref }}" }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site preview
+    permissions:
+      contents: read
+    uses: Roastbook/workflows/.github/workflows/site-build.yml@{{ <workflows_ref/> }} # main

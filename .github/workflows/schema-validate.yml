@@ -1,0 +1,63 @@
+name: Schema validate
+
+# Runs scripts/validate.sh of a schema repository (meta-schema, examples,
+# breaking changes, published-file immutability, JSON-LD context) and actionlint.
+
+on:
+  workflow_call:
+    inputs:
+      actionlint:
+        description: Lint .github/workflows with actionlint.
+        type: boolean
+        default: true
+      timeout_minutes:
+        description: Job timeout.
+        type: number
+        default: 15
+
+permissions: {}
+
+jobs:
+  validate:
+    name: Validate schemas
+    runs-on: ubuntu-26.04
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout with history and tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node and pnpm
+        uses: Roastbook/workflows/.github/actions/setup@main
+
+      - name: Run scripts/validate.sh
+        env:
+          BASE_REF: origin/${{ github.base_ref || github.event.repository.default_branch }}
+        run: scripts/validate.sh
+
+      - name: Roast report
+        if: always()
+        uses: Roastbook/workflows/.github/actions/roast-report@main
+
+  actionlint:
+    name: Lint workflows
+    if: inputs.actionlint
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run actionlint
+        # actionlint 1.7.12 does not know the ubuntu-26.04 label yet.
+        run: >-
+          go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          -ignore 'label "ubuntu-26\.04" is unknown'

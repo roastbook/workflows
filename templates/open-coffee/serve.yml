@@ -1,0 +1,25 @@
+{%- set default_tags = "v*.*.*" if kind == "schema" else "[0-9]*.[0-9]*.[0-9]*.[0-9]*" -%}
+name: Roastbook · 🫖 Serve (deploy)
+
+on:
+  push:
+    branches: [main]
+    tags: ["{{ release_tags | default(value=default_tags) }}"]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  build:
+    name: Build site
+    permissions:
+      contents: read
+    uses: Roastbook/workflows/.github/workflows/site-build.yml@{{ <workflows_ref/> }} # main
+
+  deploy:
+    name: Deploy
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    uses: Roastbook/workflows/.github/workflows/pages-deploy.yml@{{ <workflows_ref/> }} # main

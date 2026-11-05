@@ -1,0 +1,23 @@
+name: Roastbook · 🌱 Sourcing (data agent)
+
+on:
+  schedule:
+    - cron: "{{ cron | default(value="41 3 * * *") }}"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  agent:
+    name: Sourcing run
+    permissions:
+      contents: read
+    uses: Roastbook/workflows/.github/workflows/agent-run.yml@{{ <workflows_ref/> }} # main
+    with:
+      app_id: ${{ "{{ vars.SOURCING_APP_ID }}" }}
+      llm_base_url: ${{ "{{ vars.LLM_BASE_URL }}" }}
+      llm_model: ${{ "{{ vars.LLM_MODEL }}" }}
+      budget_usd: ${{ "{{ vars.SOURCING_BUDGET_USD }}" }}
+    secrets:
+      app_private_key: ${{ "{{ secrets.SOURCING_APP_PRIVATE_KEY }}" }}
+      llm_api_key: ${{ "{{ secrets.LLM_API_KEY }}" }}
