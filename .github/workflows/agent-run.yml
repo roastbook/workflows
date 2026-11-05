@@ -96,6 +96,6 @@ jobs:
           SOURCING_BUDGET_USD: ${{ inputs.budget_usd }}
         run: bash scripts/agent.sh
 
-      - name: Roast report
+      - name: CI summary
         if: always()
-        uses: Roastbook/workflows/.github/actions/roast-report@main
+        uses: Roastbook/workflows/.github/actions/summary@main

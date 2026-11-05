@@ -1,5 +1,5 @@
 {%- set link_check = kind == "data" -%}
-name: Roastbook · ⏳ Resting (link and smoke checks)
+name: Link check
 
 on:
 {%- if link_check %}
@@ -12,7 +12,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: resting-${{ "{{ github.ref }}" }}
+  group: link-check-${{ "{{ github.ref }}" }}
   cancel-in-progress: true
 
 jobs:

@@ -1,4 +1,4 @@
-name: Roastbook · 🔥 Roast (build)
+name: Build
 
 on:
   pull_request:
@@ -7,7 +7,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: roast-${{ "{{ github.ref }}" }}
+  group: build-${{ "{{ github.ref }}" }}
   cancel-in-progress: true
 
 jobs:

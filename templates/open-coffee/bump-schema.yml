@@ -1,4 +1,4 @@
-name: Roastbook · 📌 Bump schema
+name: Bump schema
 
 on:
   repository_dispatch:
@@ -67,4 +67,4 @@ jobs:
           body: |
             Open Coffee Schema [v${{ "{{ steps.version.outputs.version }}" }}](https://github.com/Roastbook/open-coffee-schema/releases/tag/v${{ "{{ steps.version.outputs.version }}" }}) was released.
 
-            This pins `{{ version_file | default(value="schema-version.txt") }}` to the new version. Cupping validates every dataset file against it; review the release notes for breaking changes before merging.
+            This pins `{{ version_file | default(value="schema-version.txt") }}` to the new version. CI validates every dataset file against it; review the release notes for breaking changes before merging.

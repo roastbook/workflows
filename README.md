@@ -5,17 +5,17 @@ reusable workflows, composite actions, and the [Orcastrate](https://github.com/m
 templates that keep a thin caller workflow in every managed repository up to date.
 
 Managed repositories never copy CI logic. Each one has small caller files such as
-`.github/workflows/cupping.yml` that start with Orcastrate frontmatter and call a
+`.github/workflows/ci.yml` that start with Orcastrate frontmatter and call a
 reusable workflow from this repository at a pinned commit:
 
 ```yaml
 # @orcastrate
-# template: open-coffee/cupping
+# template: open-coffee/ci
 # params:
 #   kind: data
 # @end-orcastrate
 
-name: Roastbook · ☕ Cupping (validate)
+name: CI
 # …
     uses: Roastbook/workflows/.github/workflows/dataset-validate.yml@<sha> # main
 ```
@@ -36,8 +36,8 @@ the same way.
 | `release.yml` | the release flow below | see below |
 | `agent-run.yml` | `scripts/agent.sh` as the Sourcing App, with `.cache/crawl` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
 
-Every job that runs a script ends with the `roast-report` action, which turns
-`.roast/report.json` into a "☕ Roast report" in the job summary.
+Every job that runs a script ends with the `summary` action, which turns
+`.ci/report.json` into a "CI summary" in the job summary.
 
 ### Release
 
@@ -111,7 +111,7 @@ package settings → **Manage Actions access**. Locally, use
   with `NPM_GITHUB_TOKEN` set for GitHub Packages. Inputs: `install` (true),
   `working-directory` (`.`), `bun-version-file` (`.bun-version`; `package.json`
   reads `packageManager: "bun@x.y.z"`).
-- `.github/actions/roast-report`: renders `.roast/report.json` (records and files
+- `.github/actions/summary`: renders `.ci/report.json` (records and files
   validated, versions, build size, URL, warnings) into `$GITHUB_STEP_SUMMARY`.
   A missing file is reported, not failed. Input: `path`.
 
@@ -122,13 +122,13 @@ backward compatible.
 
 | Template | Caller file | Params |
 |---|---|---|
-| `open-coffee/cupping` | `cupping.yml` (`Roastbook · ☕ Cupping (validate)`) | `kind`: `schema` or `data` |
-| `open-coffee/roast` | `roast.yml` (`Roastbook · 🔥 Roast (build)`, pull requests) | none |
-| `open-coffee/resting` | `resting.yml` (`Roastbook · ⏳ Resting (link and smoke checks)`, weekly) | `kind`, `site_url`, `smoke_paths` (list), `cron` |
-| `open-coffee/serve` | `serve.yml` (`Roastbook · 🫖 Serve (deploy)`, main and release tags) | `kind`, `release_tags` |
-| `open-coffee/sourcing` | `sourcing.yml` (`Roastbook · 🌱 Sourcing (data agent)`) | `cron` |
+| `open-coffee/ci` | `ci.yml` (`CI`) | `kind`: `schema` or `data` |
+| `open-coffee/build` | `build.yml` (`Build`, pull requests) | none |
+| `open-coffee/link-check` | `link-check.yml` (`Link check`, weekly) | `kind`, `site_url`, `smoke_paths` (list), `cron` |
+| `open-coffee/deploy` | `deploy.yml` (`Deploy`, main and release tags) | `kind`, `release_tags` |
+| `open-coffee/data-agent` | `data-agent.yml` (`Data agent`) | `cron` |
 | `open-coffee/bump-schema` | `bump-schema.yml` (opens "chore(schema): bump to vX" on `schema-released`) | `version_file` |
-| `common/release` | `release.yml` (`Roastbook · 🫘 Release`) | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
+| `common/release` | `release.yml` (`Release`) | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
 
 `fixtures/` holds one caller per supported parameter set. The callers in
 open-coffee-schema and open-coffee-data are exactly the rendered fixtures

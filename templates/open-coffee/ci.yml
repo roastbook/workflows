@@ -1,4 +1,4 @@
-name: Roastbook · ☕ Cupping (validate)
+name: CI
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: cupping-${{ "{{ github.ref }}" }}
+  group: ci-${{ "{{ github.ref }}" }}
   cancel-in-progress: true
 
 jobs:

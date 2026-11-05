@@ -1,23 +1,23 @@
-name: Roast report
-description: Render .roast/report.json into the job summary as "☕ Roast report". A missing file is reported, not failed.
+name: CI summary
+description: Render .ci/report.json into the job summary as "CI summary". A missing file is reported, not failed.
 
 inputs:
   path:
     description: Path to the report written by the repository scripts.
     required: false
-    default: .roast/report.json
+    default: .ci/report.json
 
 runs:
   using: composite
   steps:
-    - name: Write roast report
+    - name: Write CI summary
       shell: bash
       env:
         REPORT: ${{ inputs.path }}
       run: |
         set -euo pipefail
         {
-          echo '## ☕ Roast report'
+          echo '## CI summary'
           echo
           if [[ ! -s "$REPORT" ]] || ! jq -e 'type == "object"' "$REPORT" > /dev/null 2>&1; then
             echo "_No report found at \`$REPORT\`._"
@@ -34,7 +34,7 @@ runs:
             (if .url then "| URL | \(.url) |" else empty end),
             "",
             (if (.warnings // []) | length > 0
-              then "### ⚠️ Warnings (\(.warnings | length))", "", (.warnings[] | "- \(.)")
+              then "### Warnings (\(.warnings | length))", "", (.warnings[] | "- \(.)")
               else "No warnings." end)
           ' "$REPORT"
         } >> "$GITHUB_STEP_SUMMARY"

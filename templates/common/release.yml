@@ -1,5 +1,5 @@
 {%- set npm = npm_publish | default(value=false) -%}
-name: {{ name | default(value="Roastbook · 🫘 Release") }}
+name: {{ name | default(value="Release") }}
 
 on:
   workflow_dispatch:

@@ -85,9 +85,9 @@ jobs:
           BASE_REF: origin/${{ github.base_ref || github.event.repository.default_branch }}
         run: bash scripts/validate.sh
 
-      - name: Roast report
+      - name: CI summary
         if: always()
-        uses: Roastbook/workflows/.github/actions/roast-report@main
+        uses: Roastbook/workflows/.github/actions/summary@main
 
   actionlint:
     name: Lint workflows
