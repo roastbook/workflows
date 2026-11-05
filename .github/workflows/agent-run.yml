@@ -92,7 +92,7 @@ jobs:
           LLM_MODEL: ${{ inputs.llm_model }}
           LLM_API_KEY: ${{ secrets.llm_api_key }}
           SOURCING_BUDGET_USD: ${{ inputs.budget_usd }}
-        run: scripts/agent.sh
+        run: bash scripts/agent.sh
 
       - name: Roast report
         if: always()

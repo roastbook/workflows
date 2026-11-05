@@ -39,7 +39,7 @@ jobs:
         uses: Roastbook/workflows/.github/actions/setup@main
 
       - name: Run scripts/build.sh
-        run: scripts/build.sh
+        run: bash scripts/build.sh
 
       - name: Roast report
         if: always()

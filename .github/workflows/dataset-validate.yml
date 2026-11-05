@@ -81,7 +81,7 @@ jobs:
       - name: Run scripts/validate.sh
         env:
           BASE_REF: origin/${{ github.base_ref || github.event.repository.default_branch }}
-        run: scripts/validate.sh
+        run: bash scripts/validate.sh
 
       - name: Roast report
         if: always()

@@ -3,7 +3,7 @@
 # params:
 #   ci_workflow: cupping.yml
 #   node_setup: true
-#   assets_command: scripts/release-assets.sh "$TAG"
+#   assets_command: bash scripts/release-assets.sh "$TAG"
 #   npm_publish: true
 #   dispatch_repository: open-coffee-data
 #   dispatch_event: schema-released

@@ -67,9 +67,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if [[ "$FULL" == true ]]; then
-            scripts/link-check.sh --full
+            bash scripts/link-check.sh --full
           else
-            scripts/link-check.sh
+            bash scripts/link-check.sh
           fi
 
       - name: Roast report
