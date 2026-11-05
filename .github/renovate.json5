@@ -1,6 +1,6 @@
 {
   $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-  extends: ['github>Roastbook/workflows//templates/presets/renovate'],
+  extends: ['github>michidk/workflows//templates/presets/renovate'],
   packageRules: [
     {
       // Reusable workflows use this repository's composite actions at @main,

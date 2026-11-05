@@ -108,8 +108,10 @@ open-coffee-schema and open-coffee-data are exactly the rendered fixtures
 
 Presets that Orcastrate does not sync (it only manages `.github/workflows/`):
 
-- `templates/presets/renovate.json`: Renovate preset. Repositories extend it with
-  `"extends": ["github>Roastbook/workflows//templates/presets/renovate"]`.
+- Renovate: every repository extends the shared base config from
+  [michidk/workflows](https://github.com/michidk/workflows/blob/main/templates/presets/renovate.json)
+  with `"extends": ["github>michidk/workflows//templates/presets/renovate"]` and adds only
+  repository-specific rules (for example weekly `Roastbook/workflows` bumps).
 - `templates/presets/cliff.toml`: git-cliff configuration for `release.yml`.
   Copy it to `cliff.toml` in the repository root; it accepts both `vX.Y.Z` and
   `YYYY.MM.DD.N` tags.
@@ -155,7 +157,7 @@ the Roastbook org.
    ```
 
 4. Copy `templates/presets/cliff.toml` to `cliff.toml` when the repository releases.
-5. Add `.github/renovate.json5` extending the Renovate preset.
+5. Add `.github/renovate.json5` extending `github>michidk/workflows//templates/presets/renovate`.
 6. For Pages sites, add the repository to `scripts/repo-metadata.sh` and run it.
 
 ## GitHub Apps, variables and secrets
