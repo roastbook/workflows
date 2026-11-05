@@ -1,34 +1,45 @@
-name: Set up Node and pnpm
-description: Install Node from .node-version and pnpm from packageManager, cache the pnpm store and install dependencies.
+name: Set up Bun
+description: Install Bun from .bun-version (or package.json packageManager), cache the Bun install cache and install dependencies.
 
 inputs:
   install:
-    description: Run `pnpm install --frozen-lockfile` after setup.
+    description: Run `bun install --frozen-lockfile` after setup.
     required: false
     default: "true"
   working-directory:
-    description: Directory containing package.json and pnpm-lock.yaml.
+    description: Directory containing package.json and bun.lock.
     required: false
     default: "."
+  bun-version-file:
+    description: File with the Bun version, relative to working-directory (.bun-version, or package.json with packageManager "bun@x.y.z").
+    required: false
+    default: .bun-version
 
 runs:
   using: composite
   steps:
-    - name: Set up Node
-      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+    - name: Set up Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
       with:
-        node-version-file: .node-version
-        package-manager-cache: false
+        bun-version-file: ${{ inputs.working-directory }}/${{ inputs.bun-version-file }}
 
-    - name: Set up pnpm
-      uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+    - name: Cache Bun packages
+      if: inputs.install == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
-        package_json_file: ${{ inputs.working-directory }}/package.json
-        cache: true
-        cache_dependency_path: ${{ inputs.working-directory }}/pnpm-lock.yaml
+        path: ~/.bun/install/cache
+        key: bun-${{ runner.os }}-${{ hashFiles(format('{0}/bun.lock', inputs.working-directory)) }}
+        restore-keys: bun-${{ runner.os }}-
 
     - name: Install dependencies
       if: inputs.install == 'true'
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: pnpm install --frozen-lockfile
+      env:
+        # Read by bunfig.toml [install.scopes] for GitHub Packages; the calling job needs `packages: read`.
+        NPM_GITHUB_TOKEN: ${{ github.token }}
+      run: |
+        if ! bun install --frozen-lockfile; then
+          echo "::error::bun install failed. If a package from GitHub Packages (npm.pkg.github.com, see bunfig.toml) could not be resolved: the calling job needs 'packages: read', the package must exist (published by its release workflow) and be public or grant this repository read access (package settings -> Manage Actions access), and bun.lock must match package.json."
+          exit 1
+        fi

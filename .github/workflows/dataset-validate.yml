@@ -14,7 +14,7 @@ on:
       bot_allowed_paths:
         description: Space-separated bash globs the bot may change (any `*` also matches `/`).
         type: string
-        default: datasets/coffee-places/** assets/**
+        default: datasets/coffee-places/**
       actionlint:
         description: Lint .github/workflows with actionlint.
         type: boolean
@@ -66,8 +66,10 @@ jobs:
     name: Validate dataset
     runs-on: ubuntu-26.04
     timeout-minutes: ${{ inputs.timeout_minutes }}
+    # packages: read lets the setup action install dependencies from GitHub Packages.
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Checkout with history
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -75,7 +77,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Set up Node and pnpm
+      - name: Set up Bun
         uses: Roastbook/workflows/.github/actions/setup@main
 
       - name: Run scripts/validate.sh

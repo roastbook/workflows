@@ -6,7 +6,8 @@ name: Release
 # (semver from Conventional Commits via git-cliff, or a YYYY.MM.DD.N date
 # version), tags the tested revision as the releaser GitHub App and publishes
 # a GitHub Release with git-cliff notes. Optional hooks: release assets, npm
-# trusted publishing and a repository_dispatch to a dependent repository.
+# publishing (GitHub Packages by default) and a repository_dispatch to a
+# dependent repository.
 
 on:
   workflow_call:
@@ -32,7 +33,7 @@ on:
         type: string
         default: v2.14.2
       node_setup:
-        description: Run the setup composite action (Node, pnpm, install) before the assets command.
+        description: Run the setup composite action (Bun, bun install) before the assets command.
         type: boolean
         default: false
       assets_command:
@@ -44,15 +45,19 @@ on:
         type: string
         default: release/*
       npm_publish:
-        description: Publish npm_package_dir with npm trusted publishing (OIDC); skipped if the version exists.
+        description: Publish every npm_package_dirs entry to npm_registry with GITHUB_TOKEN; versions that exist are skipped. The caller job must grant packages write.
         type: boolean
         default: false
-      npm_package_dir:
-        description: Package directory produced by assets_command.
+      npm_package_dirs:
+        description: Whitespace-separated package directories produced by assets_command, published in this order.
         type: string
         default: release/npm
+      npm_registry:
+        description: npm registry to publish to. GITHUB_TOKEN only authenticates to GitHub Packages.
+        type: string
+        default: https://npm.pkg.github.com
       node_version:
-        description: Node version for npm publishing (trusted publishing needs 22.14 or later).
+        description: Node version that provides npm for publishing.
         type: string
         default: "26"
       dispatch_repository:
@@ -70,9 +75,6 @@ on:
       RELEASER_APP_PRIVATE_KEY:
         description: Releaser GitHub App private key.
         required: true
-      NPM_TOKEN:
-        description: Optional npm token, only for bootstrapping the first publish.
-        required: false
     outputs:
       tag:
         description: Released tag; empty when nothing was released.
@@ -104,9 +106,11 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     # Writes go through the releaser App token so tag and release events trigger workflows.
+    # packages: read lets the setup action install dependencies from GitHub Packages.
     permissions:
       contents: read
       actions: read
+      packages: read
     outputs:
       tag: ${{ steps.version.outputs.skip != 'true' && steps.version.outputs.tag || '' }}
       version: ${{ steps.version.outputs.skip != 'true' && steps.version.outputs.version || '' }}
@@ -209,7 +213,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Node and pnpm
+      - name: Set up Bun
         if: steps.version.outputs.skip != 'true' && inputs.node_setup
         uses: Roastbook/workflows/.github/actions/setup@main
 
@@ -221,12 +225,31 @@ jobs:
           ASSETS_COMMAND: ${{ inputs.assets_command }}
         run: bash -euo pipefail -c "$ASSETS_COMMAND"
 
-      - name: Keep the npm package for the publish job
+      - name: Collect the npm packages
+        if: steps.version.outputs.skip != 'true' && inputs.npm_publish
+        env:
+          PACKAGE_DIRS: ${{ inputs.npm_package_dirs }}
+        run: |
+          set -euo pipefail
+          # Numbered copies keep the publish order and survive the artifact's path flattening.
+          out="$RUNNER_TEMP/npm-packages"
+          i=0
+          for dir in $PACKAGE_DIRS; do
+            if [[ ! -f "$dir/package.json" ]]; then
+              echo "::error::$dir/package.json is missing; assets_command must build every npm_package_dirs entry."
+              exit 1
+            fi
+            mkdir -p "$out/$i"
+            cp -R "$dir/." "$out/$i/"
+            i=$((i + 1))
+          done
+
+      - name: Keep the npm packages for the publish job
         if: steps.version.outputs.skip != 'true' && inputs.npm_publish
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: npm-package
-          path: ${{ inputs.npm_package_dir }}
+          name: npm-packages
+          path: ${{ runner.temp }}/npm-packages
           retention-days: 7
           if-no-files-found: error
 
@@ -278,52 +301,43 @@ jobs:
           gh release view "$TAG" --json url --jq '.url' >> "$GITHUB_STEP_SUMMARY"
 
   npm:
-    name: Publish to npm
+    name: Publish npm packages
     needs: release
     if: inputs.npm_publish && needs.release.outputs.tag != ''
     runs-on: ubuntu-26.04
     timeout-minutes: 10
-    # Trusted publishing (OIDC): npm validates the CALLER workflow file name,
-    # and the caller job must grant id-token: write as well.
+    # The caller job must grant packages: write as well.
     permissions:
-      id-token: write
+      packages: write
     steps:
-      - name: Download the npm package
+      - name: Download the npm packages
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: npm-package
-          path: package
+          name: npm-packages
+          path: packages
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ inputs.node_version }}
-          registry-url: https://registry.npmjs.org
+          registry-url: ${{ inputs.npm_registry }}
           package-manager-cache: false
 
-      - name: Ensure npm 11.5.1 or later for trusted publishing
-        run: |
-          set -euo pipefail
-          IFS=. read -r major minor patch <<< "$(npm --version)"
-          if (( major < 11 || (major == 11 && (minor < 5 || (minor == 5 && patch < 1))) )); then
-            npm install -g npm@11
-          fi
-          npm --version
-
-      - name: Publish unless this version exists
-        working-directory: package
+      - name: Publish unless the version exists
         env:
-          # Optional bootstrap token for the very first publish; OIDC is tried first.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ github.token }}
+          REGISTRY: ${{ inputs.npm_registry }}
         run: |
           set -euo pipefail
-          spec="$(node -p "const p = require('./package.json'); p.name + '@' + p.version")"
-          if npm view "$spec" version > /dev/null 2>&1; then
-            echo "$spec is already on npm; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          npm publish --provenance --access public
-          echo "Published $spec to npm." >> "$GITHUB_STEP_SUMMARY"
+          while IFS= read -r dir; do
+            spec="$(jq -r '.name + "@" + .version' "$dir/package.json")"
+            if npm view "$spec" version --registry "$REGISTRY" > /dev/null 2>&1; then
+              echo "$spec is already on $REGISTRY; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            (cd "$dir" && npm publish --registry "$REGISTRY")
+            echo "Published $spec to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
+          done < <(find packages -mindepth 1 -maxdepth 1 -type d | sort -V)
 
   dispatch:
     name: Notify dependent repository

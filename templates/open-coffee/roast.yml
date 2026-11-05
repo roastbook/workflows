@@ -15,4 +15,5 @@ jobs:
     name: Build site preview
     permissions:
       contents: read
+      packages: read
     uses: Roastbook/workflows/.github/workflows/site-build.yml@{{ <workflows_ref/> }} # main

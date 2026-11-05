@@ -12,6 +12,7 @@ jobs:
     name: Sourcing run
     permissions:
       contents: read
+      packages: read
     uses: Roastbook/workflows/.github/workflows/agent-run.yml@{{ <workflows_ref/> }} # main
     with:
       app_id: ${{ "{{ vars.SOURCING_APP_ID }}" }}

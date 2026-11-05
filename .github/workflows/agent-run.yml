@@ -46,8 +46,10 @@ jobs:
     name: Run data agent
     runs-on: ubuntu-26.04
     timeout-minutes: ${{ inputs.timeout_minutes }}
+    # packages: read lets the setup action install dependencies from GitHub Packages.
     permissions:
       contents: read
+      packages: read
     steps:
       - name: Create Sourcing App token
         id: app-token
@@ -81,7 +83,7 @@ jobs:
           key: crawl-${{ github.run_id }}
           restore-keys: crawl-
 
-      - name: Set up Node and pnpm
+      - name: Set up Bun
         uses: Roastbook/workflows/.github/actions/setup@main
 
       - name: Run scripts/agent.sh

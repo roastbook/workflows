@@ -98,10 +98,10 @@ for repo in "${repos[@]}"; do
       ;;
     open-coffee-data)
       settings open-coffee-data \
-        "Open dataset of coffee places and specialty cafés, validated against the Open Coffee Schema. CC BY 4.0. By Roastbook." \
+        "Open dataset of coffee places and specialty cafés, validated against the Open Coffee Schema. MIT licensed. By Roastbook." \
         "https://data.roastbook.coffee/" \
         open-data dataset coffee specialty-coffee coffee-shops cafes points-of-interest geojson \
-        geoparquet maplibre germany munich cc-by roastbook managed-workflows
+        geoparquet maplibre germany munich roastbook managed-workflows
       pages open-coffee-data data.roastbook.coffee '[0-9]*.[0-9]*.[0-9]*.[0-9]*' || pages_failed open-coffee-data
       ;;
     workflows)

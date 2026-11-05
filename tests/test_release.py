@@ -14,7 +14,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = (ROOT / '.github/workflows/release.yml').read_text()
 START = WORKFLOW.index('          set -euo pipefail', WORKFLOW.index('      - name: Calculate version'))
-END = WORKFLOW.index('\n      - name: Set up Node and pnpm', START)
+END = WORKFLOW.index('\n      - name: Set up Bun', START)
 SCRIPT = textwrap.dedent(WORKFLOW[START:END])
 CLIFF = os.environ.get('GIT_CLIFF', shutil.which('git-cliff'))
 # The shared preset, so the tests also cover its tag pattern and parsers.

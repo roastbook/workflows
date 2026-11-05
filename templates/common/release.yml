@@ -20,7 +20,9 @@ jobs:
       contents: read
       actions: read
 {%- if npm %}
-      id-token: write
+      packages: write
+{%- else %}
+      packages: read
 {%- endif %}
     uses: Roastbook/workflows/.github/workflows/release.yml@{{ <workflows_ref/> }} # main
     with:
@@ -39,10 +41,12 @@ jobs:
       assets_glob: {{ assets_glob }}
 {%- endif %}
 {%- if npm %}
-      # Turn on with the NPM_PUBLISH_ENABLED variable once the npm trusted publisher exists.
-      npm_publish: ${{ "{{ vars.NPM_PUBLISH_ENABLED == 'true' }}" }}
-{%- if npm_package_dir is defined %}
-      npm_package_dir: {{ npm_package_dir }}
+      npm_publish: true
+{%- if npm_package_dirs is defined %}
+      npm_package_dirs: {{ npm_package_dirs }}
+{%- endif %}
+{%- if npm_registry is defined %}
+      npm_registry: {{ npm_registry }}
 {%- endif %}
 {%- endif %}
 {%- if dispatch_repository is defined %}

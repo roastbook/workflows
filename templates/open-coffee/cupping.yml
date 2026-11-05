@@ -17,6 +17,7 @@ jobs:
     name: Validate
     permissions:
       contents: read
+      packages: read
 {%- if kind == "schema" %}
     uses: Roastbook/workflows/.github/workflows/schema-validate.yml@{{ <workflows_ref/> }} # main
 {%- elif kind == "data" %}
