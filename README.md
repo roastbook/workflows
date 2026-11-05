@@ -220,7 +220,7 @@ It is idempotent; run it again after DNS resolves so HTTPS can be enforced.
 
 ## Development
 
-See [AGENTS.md](AGENTS.md) for the checks that CI runs in `validate.yml`.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the rules and the checks that CI runs in `validate.yml`.
 
 ## License
 
