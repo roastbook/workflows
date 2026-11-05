@@ -29,8 +29,8 @@ the same way.
 | Workflow | Runs | Inputs (default) |
 |---|---|---|
 | `schema-validate.yml` | `scripts/validate.sh` with `BASE_REF` set to the pull request base, plus actionlint | `actionlint` (true), `timeout_minutes` (15) |
-| `dataset-validate.yml` | as above, plus the agent path rule: pull requests opened by `agent_login` may only change `agent_allowed_paths` | `bot_login` (`roastbook-sourcing[bot]`), `bot_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
-| `site-build.yml` | `scripts/build.sh`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
+| `dataset-validate.yml` | as above, plus the agent path rule: pull requests opened by `agent_login` may only change `agent_allowed_paths` | `agent_login` (`roastbook-sourcing[bot]`), `agent_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
+| `site-build.yml` | `scripts/build.sh` on a checkout with full history and tags, so the build can read the release version with `git describe`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
 | `pages-deploy.yml` | `actions/deploy-pages` into environment `github-pages`, concurrency group `pages` | none; output `page_url` |
 | `link-check.yml` | lychee via `scripts/link-check.sh` (warn-only on pull requests, `--full` and failing otherwise) and HTTP smoke checks on scheduled and manual runs | `link_check` (true), `full` (false), `smoke_urls` (""), `lychee_version`, `timeout_minutes` (30) |
 | `release.yml` | the release flow below | see below |
@@ -127,7 +127,7 @@ backward compatible.
 | `open-coffee/link-check` | `link-check.yml` (`Link check`, weekly) | `kind`, `site_url`, `smoke_paths` (list), `cron` |
 | `open-coffee/deploy` | `deploy.yml` (`Deploy`, main and release tags) | `kind`, `release_tags` |
 | `open-coffee/data-agent` | `data-agent.yml` (`Data agent`) | `cron` |
-| `open-coffee/bump-schema` | `bump-schema.yml` (opens "chore(schema): bump to vX" on `schema-released`) | `version_file` |
+| `open-coffee/bump-schema` | `bump-schema.yml` (on `schema-released`, rewrites the `$schema` URLs in `datasets/**/*.json` to the new version and opens "chore(schema): bump to vX" listing the changed files) | none |
 | `common/release` | `release.yml` (`Release`) | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
 
 `fixtures/` holds one caller per supported parameter set. The callers in

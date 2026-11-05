@@ -49,10 +49,23 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Pin schema version
+      - name: Rewrite $schema URLs
+        id: rewrite
         env:
           VERSION: ${{ "{{ steps.version.outputs.version }}" }}
-        run: printf '%s\n' "$VERSION" > {{ version_file | default(value="schema-version.txt") }}
+        # Every schema.roastbook.coffee $schema URL moves to the released version; the
+        # schema repository releases all families under one tag.
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2016 # $schema is literal text
+          find datasets -name '*.json' -type f -print0 \
+            | xargs -0 -r sed -i -E 's#("\$schema": *"https://schema\.roastbook\.coffee/[^"]+\.schema\.v)[0-9]+\.[0-9]+\.[0-9]+(\.json")#\1'"$VERSION"'\2#'
+          # shellcheck disable=SC2016 # the backticks are literal Markdown
+          {
+            echo 'files<<CHANGED_FILES'
+            git diff --name-only -- datasets | sed 's/.*/- `&`/'
+            echo 'CHANGED_FILES'
+          } >> "$GITHUB_OUTPUT"
 
       - name: Open pull request
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
@@ -61,10 +74,14 @@ jobs:
           sign-commits: true
           branch: chore/bump-schema
           delete-branch: true
-          add-paths: {{ version_file | default(value="schema-version.txt") }}
+          add-paths: datasets
           commit-message: "chore(schema): bump to v${{ "{{ steps.version.outputs.version }}" }}"
           title: "chore(schema): bump to v${{ "{{ steps.version.outputs.version }}" }}"
           body: |
             Open Coffee Schema [v${{ "{{ steps.version.outputs.version }}" }}](https://github.com/Roastbook/open-coffee-schema/releases/tag/v${{ "{{ steps.version.outputs.version }}" }}) was released.
 
-            This pins `{{ version_file | default(value="schema-version.txt") }}` to the new version. CI validates every dataset file against it; review the release notes for breaking changes before merging.
+            This rewrites the `$schema` URLs to v${{ "{{ steps.version.outputs.version }}" }} in:
+
+            ${{ "{{ steps.rewrite.outputs.files }}" }}
+
+            CI validates every dataset file against the new schemas; review the release notes for breaking changes before merging.
