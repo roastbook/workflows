@@ -55,6 +55,11 @@ settings() {
 
 # Pages from the Actions artifact (no gh-pages branch), custom domain, HTTPS, and a
 # github-pages environment that accepts main plus release tags.
+# Pages needs the "Pages: write" App permission; report and continue with the other repositories.
+pages_failed() {
+  echo "warning: Pages setup failed for Roastbook/$1 (needs Pages: write on the App, or enable it in Settings → Pages: source GitHub Actions)." >&2
+}
+
 pages() {
   local repo="$OWNER/$1" cname="$2" tag_pattern="$3"
   if probe "repos/$repo/pages"; then
@@ -89,7 +94,7 @@ for repo in "${repos[@]}"; do
         "https://schema.roastbook.coffee/" \
         open-data open-standard data-standard json-schema json-ld schema-org linked-data coffee \
         specialty-coffee coffee-shops cafes points-of-interest geospatial roastbook managed-workflows
-      pages open-coffee-schema schema.roastbook.coffee 'v*.*.*'
+      pages open-coffee-schema schema.roastbook.coffee 'v*.*.*' || pages_failed open-coffee-schema
       ;;
     open-coffee-data)
       settings open-coffee-data \
@@ -97,12 +102,12 @@ for repo in "${repos[@]}"; do
         "https://data.roastbook.coffee/" \
         open-data dataset coffee specialty-coffee coffee-shops cafes points-of-interest geojson \
         geoparquet maplibre germany munich cc-by roastbook managed-workflows
-      pages open-coffee-data data.roastbook.coffee '[0-9]*.[0-9]*.[0-9]*.[0-9]*'
+      pages open-coffee-data data.roastbook.coffee '[0-9]*.[0-9]*.[0-9]*.[0-9]*' || pages_failed open-coffee-data
       ;;
     workflows)
       settings workflows \
         "Shared reusable GitHub Actions workflows, composite actions and Orcastrate templates for Roastbook repositories." \
-        "https://github.com/Roastbook/workflows#readme" \
+        "" \
         github-actions reusable-workflows composite-actions orcastrate ci roastbook
       ;;
     *) echo "unknown repository: $repo" >&2; exit 2 ;;
