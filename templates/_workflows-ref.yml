@@ -1,4 +1,4 @@
 {#- Shared component for all templates; not a workflow template itself.
     workflows_ref: commit of Roastbook/workflows that NEW callers pin. Existing callers keep
     their pinned SHA (Orcastrate ignores action versions) and Renovate bumps it. -#}
-{% component workflows_ref() %}7c22b2422f46e888ace66cddbef68401aeaadda7{% endcomponent workflows_ref %}
+{% component workflows_ref() %}15adb52d8c9422ab24409caecc406fa265f81ce7{% endcomponent workflows_ref %}
