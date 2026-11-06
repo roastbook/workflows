@@ -20,6 +20,7 @@ jobs:
       contents: write
       actions: read
 {%- if npm %}
+      id-token: write
       packages: write
 {%- else %}
       packages: read

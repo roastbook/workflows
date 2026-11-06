@@ -49,7 +49,7 @@ on:
         type: string
         default: release/*
       npm_publish:
-        description: Publish every npm_package_dirs entry to npm_registry with GITHUB_TOKEN; versions that exist are skipped. The caller job must grant packages write.
+        description: Publish every npm_package_dirs entry to npm_registry; versions that exist are skipped. npmjs.org uses Trusted Publishing (OIDC, with provenance), GitHub Packages uses GITHUB_TOKEN. The caller job must grant id-token write (npmjs.org) or packages write (GitHub Packages).
         type: boolean
         default: false
       npm_package_dirs:
@@ -57,7 +57,7 @@ on:
         type: string
         default: release/npm
       npm_registry:
-        description: npm registry to publish to. GITHUB_TOKEN only authenticates to GitHub Packages.
+        description: npm registry to publish to, https://registry.npmjs.org (Trusted Publishing) or https://npm.pkg.github.com (GITHUB_TOKEN).
         type: string
         default: https://npm.pkg.github.com
       node_version:
@@ -324,8 +324,10 @@ jobs:
     if: inputs.npm_publish && needs.release.outputs.tag != ''
     runs-on: ubuntu-26.04
     timeout-minutes: 10
-    # The caller job must grant packages: write as well.
+    # The caller job must grant the same permissions: id-token for npmjs.org Trusted Publishing,
+    # packages for GitHub Packages.
     permissions:
+      id-token: write
       packages: write
     steps:
       - name: Download the npm packages
@@ -341,12 +343,21 @@ jobs:
           registry-url: ${{ inputs.npm_registry }}
           package-manager-cache: false
 
+      - name: Install npm with Trusted Publishing support
+        if: startsWith(inputs.npm_registry, 'https://registry.npmjs.org')
+        run: npm install --global npm@11.6.2
+
       - name: Publish unless the version exists
         env:
-          NODE_AUTH_TOKEN: ${{ github.token }}
+          # GitHub Packages authenticates with the job token; npmjs.org uses OIDC and needs no token.
+          NODE_AUTH_TOKEN: ${{ startsWith(inputs.npm_registry, 'https://npm.pkg.github.com') && github.token || '' }}
           REGISTRY: ${{ inputs.npm_registry }}
         run: |
           set -euo pipefail
+          publish_args=(--registry "$REGISTRY")
+          if [[ "$REGISTRY" == https://registry.npmjs.org* ]]; then
+            publish_args+=(--provenance --access public)
+          fi
           # Captured first so a failing find stops the job instead of publishing nothing.
           dirs="$(find packages -mindepth 1 -maxdepth 1 -type d | sort -V)"
           while IFS= read -r dir; do
@@ -356,7 +367,7 @@ jobs:
               echo "$spec is already on $REGISTRY; skipping." | tee -a "$GITHUB_STEP_SUMMARY"
               continue
             fi
-            (cd "$dir" && npm publish --registry "$REGISTRY")
+            (cd "$dir" && npm publish "${publish_args[@]}")
             echo "Published $spec to $REGISTRY." >> "$GITHUB_STEP_SUMMARY"
           done <<< "$dirs"
 

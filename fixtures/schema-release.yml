@@ -5,7 +5,8 @@
 #   node_setup: true
 #   assets_command: bash scripts/release-assets.sh "$TAG"
 #   npm_publish: true
-#   npm_package_dirs: release/npm release/npm-ui
+#   npm_package_dirs: release/npm
+#   npm_registry: https://registry.npmjs.org
 #   dispatch_repository: open-coffee-data
 #   dispatch_event: schema-released
 # @end-orcastrate

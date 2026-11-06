@@ -127,6 +127,19 @@ echo "$1 $(basename "$PWD") $*" >> {self.log}
         self.assertEqual(published, ['0', *map(str, range(2, 11))])
         self.assertIn('@roastbook/p1@1.0.0 is already on', self.summary.read_text())
 
+    def test_registry_selects_publish_flags(self):
+        package = self.path / 'packages' / '0'
+        package.mkdir(parents=True)
+        (package / 'package.json').write_text(json.dumps({'name': '@roastbook/p', 'version': '1.0.0'}))
+        stub(self.bin, 'npm', f'[[ "$1" == view ]] && exit 1\necho "$*" >> {self.log}\n')
+        for registry, provenance in (('https://registry.npmjs.org', True), ('https://npm.pkg.github.com', False)):
+            self.log.write_text('')
+            result = run(self.script, self.path, self.bin, REGISTRY=registry, GITHUB_STEP_SUMMARY=str(self.summary))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = self.log.read_text()
+            self.assertIn(f'--registry {registry}', args)
+            self.assertEqual('--provenance --access public' in args, provenance, args)
+
     def test_failed_publish_stops(self):
         package = self.path / 'packages/0'
         package.mkdir(parents=True)

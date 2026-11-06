@@ -66,7 +66,7 @@ Optional hooks, all off by default:
 | `node_setup` | false | run the `setup` action (Bun, `bun install`) before the assets command |
 | `assets_command` | "" | shell command with `TAG` and `VERSION` set, e.g. `scripts/release-assets.sh "$TAG"` |
 | `assets_glob` | `release/*` | files to upload to the release (directories are skipped) |
-| `npm_publish`, `npm_package_dirs`, `npm_registry`, `node_version` | false, `release/npm`, `https://npm.pkg.github.com`, `26` | `npm publish` of each whitespace-separated directory built by `assets_command`, in order, with `GITHUB_TOKEN`; versions that already exist are skipped, so reruns are safe |
+| `npm_publish`, `npm_package_dirs`, `npm_registry`, `node_version` | false, `release/npm`, `https://npm.pkg.github.com`, `26` | `npm publish` of each whitespace-separated directory built by `assets_command`, in order, with Trusted Publishing on npmjs.org or `GITHUB_TOKEN` on GitHub Packages; versions that already exist are skipped, so reruns are safe |
 | `dispatch_repository`, `dispatch_event` | "", `released` | send `repository_dispatch` with `client_payload: {version, tag}` to a repository of the same owner |
 
 Secrets, both optional: `RELEASER_APP_PRIVATE_KEY` and `RELEASER_APP_ID` (or the
@@ -79,12 +79,22 @@ job token, which still tags and publishes the release but loses:
 - the `repository_dispatch` to `dispatch_repository`, which is skipped with a warning
   (the job token cannot write to another repository).
 
-npm packages go to GitHub Packages (`npm_registry`). Only the publish job gets
-`packages: write`, and the caller job must grant it (the `common/release`
-template does when `npm_publish` is set; otherwise it grants `packages: read`
-for the setup action). Each package needs `publishConfig.registry` set to the
-registry and a `repository` field pointing at the publishing repository, which
-links the package to it. No npm account or token is involved.
+npm packages go to the registry in `npm_registry`:
+
+- **npmjs.org** (`https://registry.npmjs.org`): Trusted Publishing. The job gets an
+  OIDC token (`id-token: write`) and publishes with provenance and public access; no
+  npm token is stored. One-time setup per package on npmjs.com: the package belongs
+  to the `roastbook` npm organisation, and its Trusted Publisher is this caller
+  (repository `Roastbook/<repo>`, workflow `release.yml`). npm only lets you add a
+  Trusted Publisher to an existing package, so the very first version is published
+  by hand (`npm publish --access public` from `release/npm` of a release).
+- **GitHub Packages** (`https://npm.pkg.github.com`): the job token
+  (`packages: write`). Installing needs a token even for public packages.
+
+The caller job must grant the same permissions; the `common/release` template grants
+`id-token: write` and `packages: write` when `npm_publish` is set (otherwise
+`packages: read` for the setup action). Each package needs `publishConfig.registry`
+set to the registry and a `repository` field pointing at the publishing repository.
 
 ### Installing from GitHub Packages
 
