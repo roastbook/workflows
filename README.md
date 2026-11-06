@@ -172,6 +172,9 @@ Presets that Orcastrate does not sync (it only manages `.github/workflows/`):
   [michidk/workflows](https://github.com/michidk/workflows/blob/main/templates/presets/renovate.json)
   with `"extends": ["github>michidk/workflows//templates/presets/renovate"]` and adds only
   repository-specific rules (for example weekly `Roastbook/workflows` bumps).
+  Libraries such as `@roastbook/ui` extend
+  `github>michidk/workflows//templates/presets/renovate-library` instead: it keeps
+  compatible version ranges for consumers rather than pinning exact versions.
 - `templates/presets/cliff.toml`: git-cliff configuration for `release.yml`.
   Copy it to `cliff.toml` in the repository root; it accepts both `vX.Y.Z` and
   `YYYY.MM.DD.N` tags.
@@ -217,7 +220,8 @@ the Roastbook org.
    ```
 
 4. Copy `templates/presets/cliff.toml` to `cliff.toml` when the repository releases.
-5. Add `.github/renovate.json5` extending `github>michidk/workflows//templates/presets/renovate`.
+5. Add `.github/renovate.json5` extending `github>michidk/workflows//templates/presets/renovate`
+   (`renovate-library` for libraries).
 6. For Pages sites, add the repository to `scripts/repo-metadata.sh` and run it.
 
 ## GitHub Apps, variables and secrets
