@@ -54,6 +54,13 @@ jobs:
         uses: Roastbook/workflows/.github/actions/setup@7c716b16de05cc8c9cb80cdd907bf6a87587b1b5 # pinned by scripts/pin-actions.sh
 
       - name: Run scripts/build.sh
+        # Optional analytics for the site layout. These are repository variables (public identifiers, not
+        # secrets); unset variables expand to empty strings and leave tracking off.
+        env:
+          PUBLIC_UMAMI_SCRIPT_URL: ${{ vars.PUBLIC_UMAMI_SCRIPT_URL }}
+          PUBLIC_UMAMI_WEBSITE_ID: ${{ vars.PUBLIC_UMAMI_WEBSITE_ID }}
+          PUBLIC_POSTHOG_TOKEN: ${{ vars.PUBLIC_POSTHOG_TOKEN }}
+          PUBLIC_POSTHOG_HOST: ${{ vars.PUBLIC_POSTHOG_HOST }}
         run: bash scripts/build.sh
 
       - name: CI summary
