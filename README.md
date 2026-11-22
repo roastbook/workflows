@@ -4,6 +4,10 @@ Shared GitHub Actions for [Roastbook](https://github.com/Roastbook) repositories
 reusable workflows, composite actions, and the [Orcastrate](https://github.com/michidk/orcastrate)
 templates that keep a thin caller workflow in every managed repository up to date.
 
+[Reusable workflows](#reusable-workflows) · [Release](#release) · [Templates](#templates) ·
+[Onboarding](#onboard-a-repository) · [Apps and secrets](#github-apps-variables-and-secrets) ·
+[Development](#development)
+
 Managed repositories never copy CI logic. Each one has small caller files such as
 `.github/workflows/ci.yml` that start with Orcastrate frontmatter and call a
 reusable workflow from this repository at a pinned commit:
@@ -27,13 +31,13 @@ permissions. They call the repository's own scripts, so CI and local runs behave
 the same way.
 
 | Workflow | Runs | Inputs (default) |
-|---|---|---|
+| --- | --- | --- |
 | `schema-validate.yml` | `scripts/validate.sh` with `BASE_REF` set to the pull request base, plus actionlint | `actionlint` (true), `timeout_minutes` (15) |
 | `dataset-validate.yml` | as above, plus the agent path rule: pull requests opened by `agent_login` may only change `agent_allowed_paths` | `agent_login` (`roastbook-sourcing[bot]`), `agent_allowed_paths` (`datasets/coffee-places/**`), `actionlint` (true), `timeout_minutes` (15) |
 | `site-build.yml` | `scripts/build.sh` on a checkout with full history and tags, so the build can read the release version with `git describe`; pull requests upload a `site-preview-pr-<n>` artifact, other events the Pages artifact. A release tag that is no longer the head of the default branch builds the default branch instead, so a late tag deploy cannot roll the site back. The build receives the caller's repository variables `PUBLIC_UMAMI_SCRIPT_URL`, `PUBLIC_UMAMI_WEBSITE_ID`, `PUBLIC_POSTHOG_TOKEN` and `PUBLIC_POSTHOG_HOST` for the optional tracking in `@roastbook/ui` | `dist` (`dist`), `preview_retention_days` (7), `timeout_minutes` (20) |
 | `pages-deploy.yml` | `actions/deploy-pages` into environment `github-pages`, concurrency group `pages` | none; output `page_url` |
 | `link-check.yml` | lychee via `scripts/link-check.sh` (warn-only on pull requests, `--full` and failing otherwise) and HTTP smoke checks on scheduled and manual runs | `link_check` (true), `full` (false), `smoke_urls` (""), `lychee_version` and its `lychee_sha256`, `timeout_minutes` (30) |
-| `release.yml` | the release flow below | see below |
+| `release.yml` | the release flow below | see below; outputs `tag` and `version` |
 | `agent-run.yml` | `scripts/agent.sh` with a Sourcing App token scoped to the calling repository (only in `GH_TOKEN`; the checkout keeps no credentials), with `.cache/pages` cached between runs | `app_id`, `llm_base_url`, `llm_model`, `budget_usd` (all required), `timeout_minutes` (180); secrets `app_private_key`, `llm_api_key` |
 
 Every job that runs a script ends with the `summary` action, which turns
@@ -58,7 +62,7 @@ caller starts it with `workflow_dispatch` on the default branch. It:
 Optional hooks, all off by default:
 
 | Input | Default | Effect |
-|---|---|---|
+| --- | --- | --- |
 | `bump_type` | `auto` | `auto`, `patch`, `minor` or `major` |
 | `ci_workflow` | `ci.yml` | workflow file that must have passed |
 | `version_scheme` | `semver` | `semver` (`vX.Y.Z`) or `date` (`YYYY.MM.DD.N`) |
@@ -153,14 +157,14 @@ callers on older pins still run older actions.
 ## Templates
 
 | Template | Caller file | Params |
-|---|---|---|
+| --- | --- | --- |
 | `open-coffee/ci` | `ci.yml` (`CI`) | `kind`: `schema` or `data` |
 | `open-coffee/build` | `build.yml` (`Build`, pull requests) | none |
 | `open-coffee/link-check` | `link-check.yml` (`Link check`, weekly) | `kind`, `site_url`, `smoke_paths` (list), `cron` |
 | `open-coffee/deploy` | `deploy.yml` (`Deploy`, main and release tags) | `kind`, `release_tags` |
 | `open-coffee/data-agent` | `data-agent.yml` (`Data agent`) | `cron` |
 | `open-coffee/bump-schema` | `bump-schema.yml` (on `schema-released`, rewrites the `$schema` URLs in `datasets/**/*.json` to the new version and opens "chore(schema): bump to vX" listing the changed files) | none |
-| `common/release` | `release.yml` (`Release`); free-form string params are rendered single-quoted, so `#` and `: ` survive | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
+| `common/release` | `release.yml` (`Release`); free-form string params are rendered single-quoted, so `#` and a colon followed by a space survive | `ci_workflow`, `version_scheme`, `node_setup`, `assets_command`, `assets_glob`, `npm_publish`, `npm_package_dirs`, `npm_registry`, `dispatch_repository`, `dispatch_event`, `name` |
 
 `fixtures/` holds one caller per supported parameter set. The callers in
 open-coffee-schema and open-coffee-data are exactly the rendered fixtures
